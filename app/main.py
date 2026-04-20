@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+
 from app.routers import auth, music, subscriptions
 
 app = FastAPI(title="Music Subscription Backend")

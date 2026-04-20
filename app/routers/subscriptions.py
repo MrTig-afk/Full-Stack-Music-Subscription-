@@ -1,12 +1,15 @@
-from fastapi import APIRouter
 from boto3.dynamodb.conditions import Key
+from fastapi import APIRouter
+
 from app.db import subscriptions_table
-from app.schemas import SubscribeRequest, RemoveSubscriptionRequest
+from app.schemas import RemoveSubscriptionRequest, SubscribeRequest
 
 router = APIRouter()
 
+
 def build_music_id(title: str, album: str) -> str:
     return f"{title}#{album}"
+
 
 @router.get("/subscriptions/{email}")
 def get_subscriptions(email: str):
@@ -14,6 +17,7 @@ def get_subscriptions(email: str):
         KeyConditionExpression=Key("user_email").eq(email)
     )
     return {"items": response.get("Items", [])}
+
 
 @router.post("/subscriptions")
 def add_subscription(payload: SubscribeRequest):
@@ -27,19 +31,17 @@ def add_subscription(payload: SubscribeRequest):
             "artist": payload.artist,
             "year": payload.year,
             "album": payload.album,
-            "img_url": payload.img_url
+            "img_url": payload.img_url,
         }
     )
     return {"message": "Subscribed successfully"}
+
 
 @router.delete("/subscriptions")
 def remove_subscription(payload: RemoveSubscriptionRequest):
     music_id = build_music_id(payload.title, payload.album)
 
     subscriptions_table.delete_item(
-        Key={
-            "user_email": payload.user_email,
-            "music_id": music_id
-        }
+        Key={"user_email": payload.user_email, "music_id": music_id}
     )
     return {"message": "Removed successfully"}

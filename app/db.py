@@ -1,6 +1,6 @@
 import boto3
 
-AWS_REGION = "us-east-1" 
+AWS_REGION = "us-east-1"
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 
