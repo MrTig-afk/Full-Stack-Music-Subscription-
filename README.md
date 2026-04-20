@@ -17,6 +17,14 @@ This project implements a cloud-based infrastructure for managing a music librar
 
 Clone the repository and set up your virtual environment:
 
+Preferred (if `uv` installed):
+
+```bash
+uv sync --no-dev
+```
+
+Fallback (without `uv`):
+
 ```bash
 # Create and activate virtual environment
 python -m venv venv
@@ -59,6 +67,15 @@ aws configure
 ## ⚡ How to Run
 
 Run the scripts in the following order to ensure dependencies (like table creation) are met:
+
+Preferred (if `uv` installed):
+
+1. **Initialize Login Table:** `uv run python q1_create_login.py`
+2. **Initialize Music Table:** `uv run python q2_create_music.py`
+3. **Load Song Data:** `uv run python q3_load_music.py`
+4. **Transfer Images:** `uv run python q4_s3_images.py`
+
+Fallback (without `uv`):
 
 1. **Initialize Login Table:** `python q1_create_login.py`
 2. **Initialize Music Table:** `python q2_create_music.py`
@@ -112,6 +129,15 @@ This FastAPI application provides backend APIs for the music subscription system
 
 ### 1. Activate virtual environment
 
+Preferred (if `uv` installed):
+
+```bash
+# No manual activation needed; uv manages env per project
+uv sync --no-dev
+```
+
+Fallback (without `uv`):
+
 ```bash
 # Windows
 source venv/Scripts/activate
@@ -121,6 +147,14 @@ source venv/bin/activate
 ```
 
 ### 2. Install dependencies
+
+Preferred (if `uv` installed):
+
+```bash
+uv sync --no-dev
+```
+
+Fallback (without `uv`):
 
 ```bash
 pip install fastapi uvicorn boto3 pydantic
@@ -135,6 +169,14 @@ aws configure
 (For AWS Learner Lab, use access key, secret key, and session token.)
 
 ### 4. Run FastAPI
+
+Preferred (if `uv` installed):
+
+```bash
+uv run dev
+```
+
+Fallback (without `uv`):
 
 ```bash
 uvicorn app.main:app --reload

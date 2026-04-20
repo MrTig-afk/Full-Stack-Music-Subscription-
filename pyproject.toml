@@ -11,7 +11,19 @@ dependencies = [
     "uvicorn>=0.44.0",
 ]
 
+[project.scripts]
+dev = "app.main:run_dev"
+
 [dependency-groups]
-dev = [
-    "boto3-stubs[dynamodb]>=1.42.91",
-]
+dev = ["boto3-stubs[dynamodb]>=1.42.91"]
+
+[tool.uv]
+package = true
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12"]
+build-backend = "uv_build"
