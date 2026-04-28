@@ -1,4 +1,5 @@
 import boto3
+from fastapi.logger import logger
 
 AWS_REGION = "us-east-1"
 
@@ -11,8 +12,8 @@ subscriptions_table = dynamodb.Table("subscriptions")
 
 # test connection
 def test_connection():
-    print("Login table status:", login_table.table_status)
-    print("Music table sample:", music_table.scan(Limit=1))
+    logger.info("Login table status: %s", login_table.table_status)
+    logger.info("Music table sample: %s", music_table.scan(Limit=1))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from boto3.dynamodb.conditions import Attr, ConditionBase
 from fastapi import APIRouter, HTTPException
+from fastapi.logger import logger
 
 from app.db import music_table
 from app.schemas import SearchRequest
@@ -24,6 +25,7 @@ def search_songs(payload: SearchRequest):
         conditions.append(Attr("year").eq(str(payload.year)))
 
     if not conditions:
+        logger.debug("Song search rejected because no filters were provided")
         raise HTTPException(
             status_code=400, detail="At least one field must be completed"
         )
@@ -32,10 +34,19 @@ def search_songs(payload: SearchRequest):
     for expr in conditions[1:]:
         filter_expression = filter_expression & expr
 
+    logger.debug(
+        "Song search filters built: title=%s artist=%s album=%s year=%s",
+        payload.title,
+        payload.artist,
+        payload.album,
+        payload.year,
+    )
     response = music_table.scan(FilterExpression=filter_expression)
     items = response.get("Items", [])
 
     if not items:
+        logger.debug("Song search returned no results")
         return {"message": "No result is retrieved. Please query again", "items": []}
 
+    logger.debug("Song search returned %s items", len(items))
     return {"items": items}
