@@ -1,12 +1,23 @@
+import logging
+
 import boto3
+from tqdm.auto import tqdm
 
 # --- UPDATE YOUR DETAILS HERE ---
 STUDENT_ID = "s4139673"  # Replace with your actual RMIT ID
 YOUR_NAME = "KaushikNarumanchi"  # Replace with your name (FirstnameLastname)
 # --------------------------------
 
+logging.basicConfig(
+    level=logging.INFO,
+)
 
-def create_and_populate_login():
+
+def create_and_populate_login() -> None:
+    """
+    This function creates a DynamoDB table named 'login' with 'email' as the primary key.
+    It then populates the table with 10 entities following the specified pattern for email, user_name, and password.
+    """
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
     # 1. Create Table (Using 'email' as the primary key)
@@ -17,17 +28,17 @@ def create_and_populate_login():
             AttributeDefinitions=[{"AttributeName": "email", "AttributeType": "S"}],
             ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
         )
-        print("Creating 'login' table...")
+        logging.info("Creating 'login' table...")
         table.meta.client.get_waiter("table_exists").wait(TableName="login")
-        print("Table 'login' created successfully!")
+        logging.info("Table 'login' created successfully!")
     except Exception as e:
-        print(f"Checking table: {e}")
+        logging.error(f"Checking table: {e}")
         table = dynamodb.Table("login")
 
     # 2. Generate 10 entities based on the image pattern
-    print("Populating 10 entities...")
+    logging.info("Populating 10 entities...")
     with table.batch_writer() as batch:
-        for i in range(10):
+        for i in tqdm(range(10)):
             # Password pattern: 012345, 123456... 901234
             # We use string formatting to handle the leading zero for '012345'
             password_base = "012345678901234"
@@ -40,7 +51,7 @@ def create_and_populate_login():
             }
             batch.put_item(Item=item)
 
-    print("Login table population complete!")
+    logging.info("Login table population complete!")
 
 
 if __name__ == "__main__":

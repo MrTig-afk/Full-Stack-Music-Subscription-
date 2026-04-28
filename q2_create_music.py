@@ -1,7 +1,14 @@
+import logging
+
 import boto3
 
+logging.basicConfig(level=logging.INFO)
 
-def create_music_table():
+
+def create_music_table() -> None:
+    """
+    This function creates a DynamoDB table named "music"
+    """
     # Connect to AWS using the credentials you configured
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
@@ -18,11 +25,11 @@ def create_music_table():
             ],
             ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
         )
-        print("Creating table... please wait.")
+        logging.info("Creating table... please wait.")
         table.meta.client.get_waiter("table_exists").wait(TableName="music")
-        print("Table 'music' created successfully!")
+        logging.info("Table 'music' created successfully!")
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
 
 
 if __name__ == "__main__":

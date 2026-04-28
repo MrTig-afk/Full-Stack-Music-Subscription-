@@ -8,6 +8,7 @@ dependencies = [
     "fastapi[standard]>=0.136.0",
     "pydantic>=2.13.3",
     "requests>=2.33.1",
+    "tqdm>=4.67.3",
     "uvicorn>=0.44.0",
 ]
 
@@ -15,7 +16,9 @@ dependencies = [
 dev = "app.main:run_dev"
 
 [dependency-groups]
-dev = ["boto3-stubs[dynamodb]>=1.42.91"]
+dev = [
+    "boto3-stubs[dynamodb,s3]>=1.42.96",
+]
 
 [tool.uv]
 package = true
