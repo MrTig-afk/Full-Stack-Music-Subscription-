@@ -1,0 +1,38 @@
+{
+  "family": "music-subscription-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "REPLACE_WITH_LABROLE_ARN",
+  "taskRoleArn": "REPLACE_WITH_LABROLE_ARN",
+  "containerDefinitions": [
+    {
+      "name": "music-subscription-api",
+      "image": "REPLACE_WITH_ECR_IMAGE_URI",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "LOGIN_TABLE_NAME", "value": "login" },
+        { "name": "MUSIC_TABLE_NAME", "value": "music" },
+        { "name": "SUBSCRIPTIONS_TABLE_NAME", "value": "subscriptions" },
+        { "name": "S3_BUCKET_NAME", "value": "REPLACE_WITH_BUCKET" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/music-subscription-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

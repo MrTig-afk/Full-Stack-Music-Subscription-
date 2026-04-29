@@ -118,10 +118,15 @@ This FastAPI application provides backend APIs for the music subscription system
 - POST `/register` → Register new user
 - POST `/login` → Login user
 - GET `/logout` → Logout
+- POST `/logout` → Logout
+- DELETE `/logout` → Logout
+- GET `/health` → Health check
+- GET `/songs/search?title=&artist=&album=&year=` → Search songs (query params)
 - POST `/songs/search` → Search songs
 - GET `/subscriptions/{email}` → Get user subscriptions
 - POST `/subscriptions` → Add subscription
 - DELETE `/subscriptions` → Remove subscription
+- DELETE `/subscriptions/{email}/{music_id}` → Remove subscription by resource path
 
 ---
 
@@ -194,3 +199,62 @@ Subscribe → /subscriptions
 View subscriptions → /subscriptions/{email}
 Remove subscription → /subscriptions (DELETE)
 Logout → /logout
+
+---
+
+## 🧰 Dependency Management (uv)
+
+This project is managed by `uv` via `pyproject.toml` and `uv.lock`.
+
+```bash
+# sync local environment
+uv sync --no-dev
+
+# after dependency changes in pyproject.toml
+uv lock
+
+# generate requirements.txt for environments that still need it
+uv export --no-emit-workspace --no-emit-project --no-hashes --no-annotate --no-dev > .\requirements.txt
+```
+
+---
+
+## ☁️ Backend Deployment Artifacts
+
+Region is standardized to `us-east-1`.
+
+### 1) EC2 (containerized app)
+
+- `Dockerfile` builds the FastAPI backend image with `uv`.
+- `deploy/ec2/user_data.sh` bootstraps an EC2 instance, pulls from ECR, and runs the container on port `80`.
+
+### 2) ECS (containerized app)
+
+- `deploy/ecs/task-definition.json` is the baseline Fargate task definition.
+- `deploy/ecs/deploy.ps1` builds/pushes image to ECR and updates ECS service.
+
+```powershell
+pwsh -File .\deploy\ecs\deploy.ps1 `
+	-AccountId <AWS_ACCOUNT_ID> `
+	-Cluster <ECS_CLUSTER_NAME> `
+	-Service <ECS_SERVICE_NAME> `
+	-LabRoleArn <LABROLE_ARN> `
+	-Bucket <S3_BUCKET_NAME> `
+	-Region us-east-1
+```
+
+### 3) API Gateway + Lambda (serverless)
+
+- `lambda_handler.py` contains the `Mangum` adapter for FastAPI.
+- `deploy/lambda/template.yaml` defines REST API routes and Lambda deployment.
+
+```bash
+sam build -t deploy/lambda/template.yaml
+sam deploy \
+	--stack-name music-subscription-lambda \
+	--region us-east-1 \
+	--capabilities CAPABILITY_IAM \
+	--parameter-overrides \
+		LabRoleArn=<LABROLE_ARN> \
+		S3BucketName=<S3_BUCKET_NAME>
+```

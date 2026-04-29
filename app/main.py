@@ -10,6 +10,11 @@ app.include_router(music.router)
 app.include_router(subscriptions.router)
 
 
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 def run_dev() -> None:
     """
     Run local dev server with the same target as README.

@@ -62,3 +62,13 @@ def logout_user():
     response.delete_cookie("user_name")
     logger.debug("Logout requested")
     return response
+
+
+@router.post("/logout")
+def logout_user_post():
+    return logout_user()
+
+
+@router.delete("/logout")
+def logout_user_delete():
+    return logout_user()

@@ -2,6 +2,7 @@ from boto3.dynamodb.conditions import Key
 from fastapi import APIRouter
 from fastapi.logger import logger
 
+from app.db import create_presigned_image_url
 from app.db import subscriptions_table
 from app.schemas import RemoveSubscriptionRequest, SubscribeRequest
 
@@ -19,6 +20,10 @@ def get_subscriptions(email: str):
         KeyConditionExpression=Key("user_email").eq(email)
     )
     items = response.get("Items", [])
+    for item in items:
+        image_key = item.get("img_url") or item.get("image_url")
+        if image_key:
+            item["image_url"] = create_presigned_image_url(str(image_key))
     logger.debug("Fetched %s subscriptions for email=%s", len(items), email)
     return {"items": items}
 
@@ -68,4 +73,11 @@ def remove_subscription(payload: RemoveSubscriptionRequest):
         payload.user_email,
         music_id,
     )
+    return {"message": "Removed successfully"}
+
+
+@router.delete("/subscriptions/{email}/{music_id}")
+def remove_subscription_by_id(email: str, music_id: str):
+    logger.debug("Removing subscription via path for email=%s music_id=%s", email, music_id)
+    subscriptions_table.delete_item(Key={"user_email": email, "music_id": music_id})
     return {"message": "Removed successfully"}

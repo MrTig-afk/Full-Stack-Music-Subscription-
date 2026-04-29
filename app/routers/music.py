@@ -2,6 +2,7 @@ from boto3.dynamodb.conditions import Attr, ConditionBase
 from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
 
+from app.db import create_presigned_image_url
 from app.db import music_table
 from app.schemas import SearchRequest
 
@@ -44,9 +45,25 @@ def search_songs(payload: SearchRequest):
     response = music_table.scan(FilterExpression=filter_expression)
     items = response.get("Items", [])
 
+    for item in items:
+        image_key = item.get("img_url") or item.get("image_url")
+        if image_key:
+            item["image_url"] = create_presigned_image_url(str(image_key))
+
     if not items:
         logger.debug("Song search returned no results")
         return {"message": "No result is retrieved. Please query again", "items": []}
 
     logger.debug("Song search returned %s items", len(items))
     return {"items": items}
+
+
+@router.get("/songs/search")
+def search_songs_get(
+    title: str | None = None,
+    year: int | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+):
+    payload = SearchRequest(title=title, year=year, artist=artist, album=album)
+    return search_songs(payload)
