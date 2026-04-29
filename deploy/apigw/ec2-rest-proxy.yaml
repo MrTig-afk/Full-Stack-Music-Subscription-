@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API Gateway REST API proxy for EC2-hosted backend
+
+Parameters:
+  ApiName:
+    Type: String
+    Default: music-subscription-ec2-rest-api
+  StageName:
+    Type: String
+    Default: prod
+  BackendBaseUrl:
+    Type: String
+    Description: Base URL for EC2 backend, for example http://<ec2-public-dns>
+
+Resources:
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Body:
+        swagger: '2.0'
+        info:
+          title: !Ref ApiName
+          version: '1.0'
+        schemes:
+          - https
+        paths:
+          /:
+            x-amazon-apigateway-any-method:
+              produces:
+                - application/json
+              x-amazon-apigateway-integration:
+                type: http_proxy
+                httpMethod: ANY
+                uri: !Ref BackendBaseUrl
+                passthroughBehavior: when_no_match
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              parameters:
+                - name: proxy
+                  in: path
+                  required: true
+                  type: string
+              produces:
+                - application/json
+              x-amazon-apigateway-integration:
+                type: http_proxy
+                httpMethod: ANY
+                uri: !Sub '${BackendBaseUrl}/{proxy}'
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: RestApi
+    Properties:
+      RestApiId: !Ref RestApi
+      StageName: !Ref StageName
+
+Outputs:
+  ApiUrl:
+    Description: Invoke URL for REST API stage
+    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/'

@@ -227,11 +227,13 @@ Region is standardized to `us-east-1`.
 
 - `Dockerfile` builds the FastAPI backend image with `uv`.
 - `deploy/ec2/user_data.sh` bootstraps an EC2 instance, pulls from ECR, and runs the container on port `80`.
+- `deploy/apigw/ec2-rest-proxy.yaml` and `deploy/apigw/deploy-ec2.ps1` expose EC2 backend through API Gateway REST API.
 
 ### 2) ECS (containerized app)
 
 - `deploy/ecs/task-definition.json` is the baseline Fargate task definition.
 - `deploy/ecs/deploy.ps1` builds/pushes image to ECR and updates ECS service.
+- `deploy/apigw/ecs-rest-proxy.yaml` and `deploy/apigw/deploy-ecs.ps1` expose ECS backend (usually ALB URL) through API Gateway REST API.
 
 ```powershell
 pwsh -File .\deploy\ecs\deploy.ps1 `
@@ -258,3 +260,21 @@ sam deploy \
 		LabRoleArn=<LABROLE_ARN> \
 		S3BucketName=<S3_BUCKET_NAME>
 ```
+
+### API Gateway for EC2 backend
+
+```powershell
+pwsh -File .\deploy\apigw\deploy-ec2.ps1 `
+	-BackendBaseUrl http://<EC2_PUBLIC_DNS_OR_IP> `
+	-Region us-east-1
+```
+
+### API Gateway for ECS backend
+
+```powershell
+pwsh -File .\deploy\apigw\deploy-ecs.ps1 `
+	-BackendBaseUrl http://<ECS_ALB_DNS_NAME> `
+	-Region us-east-1
+```
+
+Note: EC2/ECS backend must be reachable from API Gateway over HTTP/HTTPS. If backend sits in private subnet only, use VPC Link pattern instead of public proxy integration.
