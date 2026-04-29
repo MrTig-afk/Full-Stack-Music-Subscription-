@@ -8,6 +8,11 @@ logging.basicConfig(level=logging.INFO)
 def create_music_table() -> None:
     """
     This function creates a DynamoDB table named "music"
+
+    The table has the following schema:
+    - Primary Key: title (Partition Key), album (Sort Key)
+    - Local Secondary Index: TitleYearIndex (title as Partition Key, year as Sort Key)
+    - Global Secondary Index: ArtistYearIndex (artist as Partition Key, year as Sort Key)
     """
     # Connect to AWS using the credentials you configured
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
@@ -22,6 +27,32 @@ def create_music_table() -> None:
             AttributeDefinitions=[
                 {"AttributeName": "title", "AttributeType": "S"},
                 {"AttributeName": "album", "AttributeType": "S"},
+                {"AttributeName": "artist", "AttributeType": "S"},
+                {"AttributeName": "year", "AttributeType": "S"},
+            ],
+            LocalSecondaryIndexes=[
+                {
+                    "IndexName": "TitleYearIndex",
+                    "KeySchema": [
+                        {"AttributeName": "title", "KeyType": "HASH"},
+                        {"AttributeName": "year", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "ArtistYearIndex",
+                    "KeySchema": [
+                        {"AttributeName": "artist", "KeyType": "HASH"},
+                        {"AttributeName": "year", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 5,
+                        "WriteCapacityUnits": 5,
+                    },
+                }
             ],
             ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
         )

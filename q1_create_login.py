@@ -38,7 +38,7 @@ def create_and_populate_login() -> None:
     # 2. Generate 10 entities based on the image pattern
     logging.info("Populating 10 entities...")
     with table.batch_writer() as batch:
-        for i in tqdm(range(10)):
+        for i in tqdm(range(10), leave=False, desc="Populating login table"):
             # Password pattern: 012345, 123456... 901234
             # We use string formatting to handle the leading zero for '012345'
             password_base = "012345678901234"

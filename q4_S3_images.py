@@ -32,7 +32,7 @@ def run_s3_pipeline():
     processed_urls = set()
 
     logging.info("Starting image transfer to S3...")
-    for song in tqdm(data["songs"]):
+    for song in tqdm(data["songs"], leave=False, desc="S3 upload"):
         img_url = song.get("img_url")
         if img_url and img_url not in processed_urls:
             filename = os.path.basename(urlparse(img_url).path)
