@@ -29,7 +29,7 @@ class MusicSearchResponse(BaseModel):
 def combine_conditions(conditions: list[ConditionBase]) -> ConditionBase | None:
     """
     Combines a list of DynamoDB conditions into a single condition using simple ANDs.
-
+    Ref: https://docs.aws.amazon.com/code-library/latest/ug/python_3_dynamodb_code_examples.html > Query a table with a complex filter expression
     :param list[ConditionBase] conditions: A list of DynamoDB conditions to combine.
     :return ConditionBase | None: A single combined condition, or None if the input list is empty.
     """
@@ -75,7 +75,6 @@ def search_songs(payload: SearchRequest) -> MusicSearchResponse:
     response_items: list[MusicSearchItem]
     try:
         if title:
-            # Query-first routing follows DynamoDB access-pattern guidance from http://www.dynamodbguide.com/secondary-indexes/#querying-a-secondary-index. The TitleYearIndex supports efficient querying by title and year, so we can use it if the title filter is provided.
             key_expr = Key("title").eq(title)
             if album:
                 key_expr = key_expr & Key("album").eq(album)
@@ -135,7 +134,7 @@ def search_songs(payload: SearchRequest) -> MusicSearchResponse:
                 ]
             logger.debug("Song search used Query on ArtistYearIndex")
         else:
-            # Scan fallback is retained for the full-text searches that are not efficiently supported by the table's indexes. This is not ideal for performance, but it allows for more flexible searching when the GSI/LSI design does not perfectly match
+            # Scan fallback for full text searches. This is not ideal for performance, but filtered when artist and title are not available
             scan_filters: list[ConditionBase] = []
             if album:
                 scan_filters.append(Attr("album").eq(album))
