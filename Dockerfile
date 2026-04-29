@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,17 +6,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install uv and project dependencies from pyproject/lock
-RUN pip install --no-cache-dir uv
-COPY pyproject.toml uv.lock README.md /app/
-RUN uv sync --frozen --no-dev
+# Apply latest security patches available at build time
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy application
+# Install uv
+RUN pip install --no-cache-dir uv
+
+# Copy full project before syncing because project is packaged (`tool.uv.package = true`)
 COPY . /app
 
-# Re-sync in case source tree adds local package files
+# Install locked dependencies and project package
 RUN uv sync --frozen --no-dev
 
 EXPOSE 80
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--proxy-headers"]
+ENTRYPOINT ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--proxy-headers"]
