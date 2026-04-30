@@ -30,6 +30,7 @@ def create_music_table() -> None:
                 {"AttributeName": "artist", "AttributeType": "S"},
                 {"AttributeName": "year", "AttributeType": "S"},
             ],
+            # Keeping LSI definition here for reference, because GSI can just be used everywhere in our backend
             LocalSecondaryIndexes=[
                 {
                     "IndexName": "TitleYearIndex",
