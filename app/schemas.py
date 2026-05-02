@@ -1,14 +1,18 @@
-from pydantic import BaseModel
 from typing import Optional
 
+from pydantic import BaseModel, EmailStr
+
+
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
+
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     user_name: str
     password: str
+
 
 class SearchRequest(BaseModel):
     title: Optional[str] = None
@@ -16,15 +20,17 @@ class SearchRequest(BaseModel):
     artist: Optional[str] = None
     album: Optional[str] = None
 
+
 class SubscribeRequest(BaseModel):
-    user_email: str
+    user_email: EmailStr
     title: str
     artist: str
     year: str
     album: str
     img_url: str
 
+
 class RemoveSubscriptionRequest(BaseModel):
-    user_email: str
+    user_email: EmailStr
     title: str
     album: str

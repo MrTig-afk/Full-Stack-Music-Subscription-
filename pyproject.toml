@@ -1,0 +1,37 @@
+[project]
+name = "full-stack-music-subscription"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.42.91",
+    "fastapi[standard]>=0.136.0",
+    "mangum>=0.19.0",
+    "pydantic>=2.13.3",
+    "requests>=2.33.1",
+    "tqdm>=4.67.3",
+    "uvicorn>=0.44.0",
+]
+
+[project.scripts]
+dev = "app.main:run_dev"
+
+[dependency-groups]
+dev = [
+    "black>=26.3.1",
+    "boto3-stubs[dynamodb,s3]>=1.42.96",
+    "flake8>=7.3.0",
+    "flake8-bugbear>=25.11.29",
+    "isort>=8.0.1",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12"]
+build-backend = "uv_build"
