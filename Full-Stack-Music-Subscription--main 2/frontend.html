@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TuneStream</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f3; color: #1a1a18; min-height: 100vh; }
+
+    .page { display: none; min-height: 100vh; }
+    .page.active { display: block; }
+
+    .auth-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; }
+    .auth-brand { font-size: 22px; font-weight: 600; margin-bottom: 2rem; color: #1a1a18; }
+    .auth-brand span { color: #185FA5; }
+    .auth-card { background: #fff; border: 1px solid #e0e0dc; border-radius: 14px; padding: 2rem; width: 100%; max-width: 400px; }
+    .auth-card h1 { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+    .auth-card p { font-size: 13px; color: #6b6b68; margin-bottom: 1.5rem; }
+
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #6b6b68; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .field input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid #d0d0cc; border-radius: 8px; font-size: 14px; color: #1a1a18; background: #fff; outline: none; transition: border-color 0.15s; }
+    .field input:focus { border-color: #185FA5; box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
+    .btn-main { width: 100%; height: 40px; background: #185FA5; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 0.25rem; transition: background 0.15s; }
+    .btn-main:hover { background: #0C447C; }
+    .auth-footer { text-align: center; margin-top: 1.25rem; font-size: 13px; color: #6b6b68; }
+    .auth-footer a { color: #185FA5; cursor: pointer; text-decoration: none; font-weight: 500; }
+    .auth-footer a:hover { text-decoration: underline; }
+
+    .alert { font-size: 13px; padding: 9px 12px; border-radius: 8px; margin-bottom: 1rem; display: none; }
+    .alert.show { display: block; }
+    .alert-error { background: #fff0f0; color: #7a1f1f; border: 1px solid #f5c0c0; }
+    .alert-success { background: #f0f8ec; color: #275010; border: 1px solid #b0d890; }
+
+    .topbar { height: 54px; background: #fff; border-bottom: 1px solid #e0e0dc; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; position: sticky; top: 0; z-index: 10; }
+    .topbar-brand { font-size: 17px; font-weight: 600; }
+    .topbar-brand span { color: #185FA5; }
+    .topbar-right { display: flex; align-items: center; gap: 1.25rem; }
+    .topbar-user { font-size: 13px; color: #6b6b68; }
+    .topbar-user strong { color: #1a1a18; font-weight: 600; }
+    .topbar-logout { font-size: 13px; color: #185FA5; cursor: pointer; background: none; border: none; font-weight: 500; padding: 0; }
+    .topbar-logout:hover { text-decoration: underline; }
+
+    .app-body { max-width: 960px; margin: 0 auto; padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }
+    .section { background: #fff; border: 1px solid #e0e0dc; border-radius: 14px; padding: 1.25rem 1.5rem; }
+    .section-title { font-size: 15px; font-weight: 600; color: #1a1a18; margin-bottom: 1rem; }
+    .empty { font-size: 13px; color: #9b9b98; padding: 0.5rem 0; }
+
+    .song-list { display: flex; flex-direction: column; }
+    .song-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0ec; }
+    .song-item:last-child { border-bottom: none; }
+    .song-thumb { width: 46px; height: 46px; border-radius: 8px; background: #e8e8e4; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; overflow: hidden; }
+    .song-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .song-meta { flex: 1; min-width: 0; }
+    .song-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-sub { font-size: 12px; color: #6b6b68; margin-top: 2px; }
+    .btn-action { height: 30px; padding: 0 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.15s; }
+    .btn-subscribe { background: #e6f1fb; color: #0C447C; border: 1px solid #85B7EB; }
+    .btn-subscribe:hover { background: #B5D4F4; }
+    .btn-remove { background: #fff0f0; color: #7a1f1f; border: 1px solid #f5c0c0; }
+    .btn-remove:hover { background: #f7c1c1; }
+
+    .query-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+    .qfield label { display: block; font-size: 12px; font-weight: 600; color: #6b6b68; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .qfield input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #d0d0cc; border-radius: 8px; font-size: 13px; color: #1a1a18; background: #fff; outline: none; transition: border-color 0.15s; }
+    .qfield input:focus { border-color: #185FA5; box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
+    .btn-query { height: 38px; padding: 0 22px; background: #185FA5; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-query:hover { background: #0C447C; }
+    .no-result { font-size: 13px; color: #6b6b68; padding: 0.75rem 0; display: none; }
+    .no-result.show { display: block; }
+    .results-label { font-size: 12px; font-weight: 600; color: #9b9b98; text-transform: uppercase; letter-spacing: 0.5px; margin: 1rem 0 8px; display: none; }
+    .results-label.show { display: block; }
+    .divider { height: 1px; background: #f0f0ec; margin: 1rem 0; }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page active">
+  <div class="auth-wrap">
+    <div class="auth-brand">Tune<span>Stream</span></div>
+    <div class="auth-card">
+      <h1>Welcome back</h1>
+      <p>Sign in to your account to continue</p>
+      <div id="login-err" class="alert alert-error">email or password is invalid</div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="l-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="btn-main" onclick="doLogin()">Login</button>
+      <div class="auth-footer">Don't have an account? <a onclick="nav('register')">Register here</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER PAGE -->
+<div id="page-register" class="page">
+  <div class="auth-wrap">
+    <div class="auth-brand">Tune<span>Stream</span></div>
+    <div class="auth-card">
+      <h1>Create account</h1>
+      <p>Join TuneStream today</p>
+      <div id="reg-err" class="alert alert-error">The email already exists.</div>
+      <div id="reg-ok" class="alert alert-success">Account created! Redirecting to login…</div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="r-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="r-user" placeholder="Your display name" onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="r-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doRegister()">
+      </div>
+      <button class="btn-main" onclick="doRegister()">Create account</button>
+      <div class="auth-footer">Already have an account? <a onclick="nav('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN PAGE -->
+<div id="page-main" class="page">
+  <div class="topbar">
+    <span class="topbar-brand">Tune<span>Stream</span></span>
+    <div class="topbar-right">
+      <span class="topbar-user">Hello, <strong id="t-username">—</strong></span>
+      <button class="topbar-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <div class="section">
+      <div class="section-title">My subscriptions</div>
+      <div id="sub-list">
+        <p class="empty">No subscriptions yet — search for songs below and subscribe.</p>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Search music</div>
+      <div class="query-grid">
+        <div class="qfield"><label>Title</label><input type="text" id="q-title" placeholder="e.g. Love Story"></div>
+        <div class="qfield"><label>Artist</label><input type="text" id="q-artist" placeholder="e.g. Taylor Swift"></div>
+        <div class="qfield"><label>Album</label><input type="text" id="q-album" placeholder="e.g. Fearless"></div>
+        <div class="qfield"><label>Year</label><input type="text" id="q-year" placeholder="e.g. 2008"></div>
+      </div>
+      <button class="btn-query" onclick="doQuery()">Query</button>
+      <div class="divider"></div>
+      <p class="no-result" id="no-result">No result is retrieved. Please query again.</p>
+      <div class="results-label" id="results-label">Results</div>
+      <div id="result-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Config ─────────────────────────────────────────────────────────────
+  // Set USE_MOCK = true to test without a backend (uses fake data)
+  // Set USE_MOCK = false and paste your team's EC2/Lambda URL in API_BASE
+  const API_BASE = 'http://YOUR_TEAM_BACKEND_URL_HERE';
+  const USE_MOCK  = true;
+
+  // ── Mock data (only used when USE_MOCK = true) ──────────────────────────
+  const MOCK_USERS = [
+    { email: 's3816088@student.rmit.edu.au', user_name: 'John',    password: '123456'    },
+    { email: 's3816089@student.rmit.edu.au', user_name: 'Emily',   password: 'password1' },
+    { email: 's3816090@student.rmit.edu.au', user_name: 'Michael', password: 'abc123'    },
+  ];
+
+  const MOCK_SONGS = [
+    { title: 'Love Story',             artist: 'Taylor Swift', album: 'Fearless',             year: '2008', image_url: '' },
+    { title: 'You Belong with Me',     artist: 'Taylor Swift', album: 'Fearless',             year: '2008', image_url: '' },
+    { title: 'Shake It Off',           artist: 'Taylor Swift', album: '1989',                 year: '2014', image_url: '' },
+    { title: 'Blinding Lights',        artist: 'The Weeknd',   album: 'After Hours',          year: '2020', image_url: '' },
+    { title: 'Starboy',                artist: 'The Weeknd',   album: 'Starboy',              year: '2016', image_url: '' },
+    { title: 'Hotel California',       artist: 'Eagles',       album: 'Hotel California',     year: '1977', image_url: '' },
+    { title: 'Bohemian Rhapsody',      artist: 'Queen',        album: 'A Night at the Opera', year: '1975', image_url: '' },
+    { title: 'Come and Get Your Love', artist: 'Redbone',      album: 'Potlatch',             year: '1974', image_url: '' },
+  ];
+
+  // ── App state ───────────────────────────────────────────────────────────
+  let subscriptions = [];
+  let lastResults   = [];
+
+  // ── Navigation ──────────────────────────────────────────────────────────
+  function nav(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+  }
+
+  function showAlert(id, visible) {
+    document.getElementById(id).classList.toggle('show', visible);
+  }
+
+  // ── Login ───────────────────────────────────────────────────────────────
+  async function doLogin() {
+    const email    = document.getElementById('l-email').value.trim();
+    const password = document.getElementById('l-pass').value;
+    showAlert('login-err', false);
+
+    if (USE_MOCK) {
+      const user = MOCK_USERS.find(u => u.email === email && u.password === password);
+      if (user) { enterMain(user.user_name, email); }
+      else       { showAlert('login-err', true); }
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + '/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email, password }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        enterMain(data.user_name, email);
+      } else {
+        showAlert('login-err', true);
+      }
+    } catch { showAlert('login-err', true); }
+  }
+
+  // ── Register ────────────────────────────────────────────────────────────
+  async function doRegister() {
+    const email     = document.getElementById('r-email').value.trim();
+    const user_name = document.getElementById('r-user').value.trim();
+    const password  = document.getElementById('r-pass').value;
+    showAlert('reg-err', false);
+    showAlert('reg-ok',  false);
+
+    if (USE_MOCK) {
+      if (MOCK_USERS.find(u => u.email === email)) { showAlert('reg-err', true); return; }
+      MOCK_USERS.push({ email, user_name, password });
+      showAlert('reg-ok', true);
+      setTimeout(() => nav('login'), 1500);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + '/register', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email, user_name, password }),
+      });
+      if (res.ok) {
+        showAlert('reg-ok', true);
+        setTimeout(() => nav('login'), 1500);
+      } else {
+        showAlert('reg-err', true);
+      }
+    } catch { showAlert('reg-err', true); }
+  }
+
+  // ── Enter main page ─────────────────────────────────────────────────────
+  function enterMain(username, email) {
+    sessionStorage.setItem('username', username);
+    sessionStorage.setItem('email',    email);
+    document.getElementById('t-username').textContent = username;
+    subscriptions = [];
+    lastResults   = [];
+    document.getElementById('result-list').innerHTML = '';
+    document.getElementById('no-result').classList.remove('show');
+    document.getElementById('results-label').classList.remove('show');
+    ['q-title','q-artist','q-album','q-year'].forEach(id => document.getElementById(id).value = '');
+    nav('main');
+    loadSubscriptions();
+  }
+
+  // ── Logout ──────────────────────────────────────────────────────────────
+  async function doLogout() {
+    if (!USE_MOCK) {
+      try { await fetch(API_BASE + '/logout'); } catch {}
+    }
+    sessionStorage.clear();
+    document.getElementById('l-email').value = '';
+    document.getElementById('l-pass').value  = '';
+    nav('login');
+  }
+
+  // ── Load subscriptions from backend ─────────────────────────────────────
+  async function loadSubscriptions() {
+    if (USE_MOCK) { renderSubs(); return; }
+    const email = sessionStorage.getItem('email');
+    try {
+      const res  = await fetch(API_BASE + '/subscriptions/' + encodeURIComponent(email));
+      const data = await res.json();
+      // backend returns list directly or wrapped in .subscriptions
+      subscriptions = data.subscriptions || data || [];
+      // normalise field names from backend
+      subscriptions = subscriptions.map(s => ({
+        title:     s.title,
+        artist:    s.artist,
+        album:     s.album,
+        year:      s.year,
+        image_url: s.img_url || s.image_url || '',
+      }));
+    } catch { subscriptions = []; }
+    renderSubs();
+  }
+
+  // ── Render subscriptions ─────────────────────────────────────────────────
+  function renderSubs() {
+    const el = document.getElementById('sub-list');
+    if (!subscriptions.length) {
+      el.innerHTML = '<p class="empty">No subscriptions yet — search for songs below and subscribe.</p>';
+      return;
+    }
+    el.innerHTML = '<div class="song-list">'
+      + subscriptions.map((s, i) => songCardHTML(s, 'remove', i)).join('')
+      + '</div>';
+  }
+
+  // ── Build a song card ────────────────────────────────────────────────────
+  function songCardHTML(song, action, index) {
+    const thumb = song.image_url
+      ? `<div class="song-thumb"><img src="${song.image_url}" alt="${song.artist}" onerror="this.parentElement.innerHTML='♪'"></div>`
+      : `<div class="song-thumb">♪</div>`;
+    const btn = action === 'remove'
+      ? `<button class="btn-action btn-remove"    onclick="removeSub(${index})">Remove</button>`
+      : `<button class="btn-action btn-subscribe" onclick="addSub(${index})">Subscribe</button>`;
+    return `<div class="song-item">${thumb}
+      <div class="song-meta">
+        <div class="song-title">${song.title}</div>
+        <div class="song-sub">${song.artist} · ${song.album} · ${song.year}</div>
+      </div>${btn}</div>`;
+  }
+
+  // ── Query ────────────────────────────────────────────────────────────────
+  async function doQuery() {
+    const title  = document.getElementById('q-title').value.trim();
+    const artist = document.getElementById('q-artist').value.trim();
+    const album  = document.getElementById('q-album').value.trim();
+    const year   = document.getElementById('q-year').value.trim();
+    if (!title && !artist && !album && !year) return;
+
+    document.getElementById('no-result').classList.remove('show');
+    document.getElementById('results-label').classList.remove('show');
+    document.getElementById('result-list').innerHTML = '';
+
+    if (USE_MOCK) {
+      showResults(MOCK_SONGS.filter(s =>
+        (!title  || s.title.toLowerCase().includes(title.toLowerCase()))   &&
+        (!artist || s.artist.toLowerCase().includes(artist.toLowerCase())) &&
+        (!album  || s.album.toLowerCase().includes(album.toLowerCase()))   &&
+        (!year   || s.year === year)
+      ));
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (title)  params.append('title',  title);
+      if (artist) params.append('artist', artist);
+      if (album)  params.append('album',  album);
+      if (year)   params.append('year',   year);
+      const res  = await fetch(API_BASE + '/songs/search?' + params.toString());
+      const data = await res.json();
+      // backend returns list directly or wrapped in .songs
+      const songs = (data.songs || data || []).map(s => ({
+        title:     s.title,
+        artist:    s.artist,
+        album:     s.album,
+        year:      s.year,
+        image_url: s.img_url || s.image_url || '',
+      }));
+      showResults(songs);
+    } catch { showResults([]); }
+  }
+
+  function showResults(results) {
+    lastResults = results;
+    if (!results.length) {
+      document.getElementById('no-result').classList.add('show');
+      return;
+    }
+    document.getElementById('results-label').classList.add('show');
+    document.getElementById('result-list').innerHTML =
+      '<div class="song-list">'
+      + results.map((s, i) => songCardHTML(s, 'subscribe', i)).join('')
+      + '</div>';
+  }
+
+  // ── Subscribe ─────────────────────────────────────────────────────────────
+  async function addSub(index) {
+    const song = lastResults[index];
+    if (subscriptions.find(s => s.title === song.title && s.artist === song.artist)) return;
+
+    if (!USE_MOCK) {
+      const email = sessionStorage.getItem('email');
+      try {
+        await fetch(API_BASE + '/subscriptions', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            user_email: email,
+            title:      song.title,
+            artist:     song.artist,
+            year:       song.year,
+            album:      song.album,
+            img_url:    song.image_url || '',
+          }),
+        });
+      } catch {}
+    }
+    subscriptions.push(song);
+    renderSubs();
+  }
+
+  // ── Remove subscription ───────────────────────────────────────────────────
+  async function removeSub(index) {
+    const song = subscriptions[index];
+
+    if (!USE_MOCK) {
+      const email = sessionStorage.getItem('email');
+      try {
+        await fetch(API_BASE + '/subscriptions', {
+          method:  'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            user_email: email,
+            title:      song.title,
+            album:      song.album,
+          }),
+        });
+      } catch {}
+    }
+    subscriptions.splice(index, 1);
+    renderSubs();
+  }
+</script>
+</body>
+</html>
