@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Music subscription backend (FastAPI) on API Gateway + Lambda
 
@@ -29,6 +29,12 @@ Resources:
     Properties:
       Name: music-subscription-rest-api
       StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders:
+          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-\
+          Token'"
+        AllowOrigin: "'*'"
 
   BackendFunction:
     Type: AWS::Serverless::Function
