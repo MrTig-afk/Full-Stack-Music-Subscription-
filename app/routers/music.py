@@ -1,3 +1,26 @@
+"""Music search router.
+
+Provides song search endpoint with flexible AND matching across title, artist, album, and year.
+Queries DynamoDB music table with optional Global Secondary Index (GSI) support.
+Generates presigned S3 URLs for artist images (3600-second TTL).
+
+Endpoints:
+  - POST /songs/search — Search songs by title, artist, album, year (AND matching)
+
+Key Features:
+  - At least one search criterion required (title, artist, album, or year)
+  - Results normalized to include both 'image_url' and 'img_url' properties
+  - Presigned S3 URLs generated for all image_url fields
+  - AND matching: only songs matching all provided criteria returned
+  - DynamoDB scan with FilterExpression for flexible querying
+
+Notes:
+  - Uses music_table from DynamoDB (created by q2_create_music.py)
+  - Artist/Year queries benefit from GSI "ArtistYearIndex" when available
+  - Large result sets may require pagination (not implemented; use Limit/ExclusiveStartKey)
+  - S3 bucket name configured in app.db.create_presigned_image_url()
+"""
+
 from boto3.dynamodb.conditions import Attr, ConditionBase, Key
 from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
@@ -27,11 +50,25 @@ class MusicSearchResponse(BaseModel):
 
 
 def combine_conditions(conditions: list[ConditionBase]) -> ConditionBase | None:
-    """
-    Combines a list of DynamoDB conditions into a single condition using simple ANDs.
-    Ref: https://docs.aws.amazon.com/code-library/latest/ug/python_3_dynamodb_code_examples.html > Query a table with a complex filter expression
-    :param list[ConditionBase] conditions: A list of DynamoDB conditions to combine.
-    :return ConditionBase | None: A single combined condition, or None if the input list is empty.
+    """Combine DynamoDB conditions with AND logic.
+    
+    Merges multiple DynamoDB condition objects into a single expression using
+    the & operator for AND matching. Used for multi-criteria song searches.
+    
+    Args:
+        conditions: List of DynamoDB ConditionBase objects
+        
+    Returns:
+        A single combined condition using AND, or None if list is empty
+        
+    Ref: https://docs.aws.amazon.com/code-library/latest/ug/python_3_dynamodb_code_examples.html
+         > Query a table with a complex filter expression
+    
+    Example:
+        combined = combine_conditions([
+            Attr("title").begins_with("Hello"),
+            Attr("artist").eq("Beatles")
+        ])
     """
     if not conditions:
         return None
@@ -44,10 +81,25 @@ def combine_conditions(conditions: list[ConditionBase]) -> ConditionBase | None:
 
 @router.post("/songs/search")
 def search_songs(payload: SearchRequest) -> MusicSearchResponse:
+    """Search songs by title, artist, album, and/or year.
+    
+    Queries DynamoDB music table with AND matching across provided criteria.
+    At least one search field (title, artist, album, year) must be provided.
+    All matching songs are returned with presigned S3 image URLs.
+    
+    Args:
+        payload: SearchRequest containing optional title, artist, album, year
+        
+    Returns:
+        MusicSearchResponse with list of matching songs and presigned image URLs
+        
+    Raises:
+        HTTPException: 400 if no search criteria provided
+        
+    Example:
+        POST /songs/search
+        {"title": "Imagine", "artist": "John Lennon"}
     """
-    This function implements the /songs/search endpoint, allowing users to search for songs based on title, artist, album, and year.
-
-    :param SearchRequest payload: The search criteria for the song search, which may include title, artist, album, and year. At least one field must be provided.
     :raises HTTPException: If no search criteria are provided.
     :return _type_: A list of songs matching the search criteria. Each song includes a presigned image URL if an image is associated with it.
     """
