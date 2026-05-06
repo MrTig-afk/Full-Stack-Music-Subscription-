@@ -1,6 +1,6 @@
 # Cloud Computing - Music Database ETL Pipeline
 
-This project implements a cloud-based infrastructure for managing a music library using **AWS DynamoDB** and **S3**. It includes scripts for schema creation, batch data ingestion, and an automated image processing pipeline.
+This project implements a cloud-based infrastructure for managing a music library using **AWS DynamoDB** and **S3**. It includes scripts for schema creation, batch data ingestion, an automated image processing pipeline, and a static web frontend for the subscription app.
 
 ## 🚀 Project Overview
 
@@ -60,6 +60,7 @@ aws configure
 | `q2_create_music.py` | Defines the `music` table schema (Title = Partition Key, Album = Sort Key). |
 | `q3_load_music.py`   | Batch uploads 137 songs from the JSON dataset to DynamoDB.                  |
 | `q4_s3_images.py`    | Downloads artist images and uploads them to the unique S3 bucket.           |
+| `frontend/`          | Static HTML/CSS/JS frontend for login, register, query, and subscriptions.  |
 | `2026a2_songs.json`  | The raw source data.                                                        |
 
 ---
@@ -99,6 +100,10 @@ aws s3 ls s3://your-unique-bucket-name/
 ## 🌐 FastAPI Backend
 
 This FastAPI application provides backend APIs for the music subscription system. It connects to AWS DynamoDB and supports user authentication, song search, and subscription management.
+
+## 🖥️ Frontend
+
+The static frontend lives in [frontend/](frontend/) and consumes the backend REST API directly. See [deployment_guide.md](deployment_guide.md) for the recommended hosting path and backend URL configuration.
 
 ---
 
@@ -278,3 +283,45 @@ pwsh -File .\deploy\apigw\deploy-ecs.ps1 `
 ```
 
 Note: EC2/ECS backend must be reachable from API Gateway over HTTP/HTTPS. If backend sits in private subnet only, use VPC Link pattern instead of public proxy integration.
+
+---
+
+## 📦 Deployment & Packaging
+
+This project is **ready for deployment to AWS** with three independent backend options and a static frontend.
+
+### Quick Links
+
+- **[DEPLOYMENT_PACKAGING.md](DEPLOYMENT_PACKAGING.md)** — Overview of deployment options, cost analysis, and quick-start guide
+- **[deployment_guide.md](deployment_guide.md)** — Complete step-by-step instructions for all 3 backends (EC2, ECS, Lambda) + frontend
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** — Executable testing checklist for validating all deployment scenarios
+- **[frontend/README.md](frontend/README.md)** — Frontend-specific documentation and hosting options
+- **[deploy-frontend-s3.ps1](deploy-frontend-s3.ps1)** — Automated script to deploy frontend to S3
+
+### Deployment Options
+
+| Backend | Frontend | Cost | Setup Time | Best For |
+|---|---|---|---|---|
+| **EC2** | S3 | ~$5–10/mo | ~15 min | Learning, demos |
+| **ECS Fargate** | S3 | ~$15–30/mo | ~20 min | Production, auto-scaling |
+| **Lambda** | S3 | ~$5–10/mo | ~5 min | Serverless, minimal ops |
+| **Local Dev** | Local Server | Free | ~1 min | Testing, development |
+
+### Quick Start
+
+```bash
+# 1. Create DynamoDB tables and S3 bucket (shared for all backends)
+python q1_create_login.py
+python q2_create_music.py
+python q3_load_music.py
+python create_subscriptions_table.py
+python q4_S3_images.py
+
+# 2. Deploy frontend to S3 (after deploying backend)
+.\deploy-frontend-s3.ps1 -ApiBaseUrl "http://<your-backend-url>"
+
+# 3. Test in browser
+# Open http://<frontend-s3-url>
+```
+
+For detailed instructions, see [DEPLOYMENT_PACKAGING.md](DEPLOYMENT_PACKAGING.md).

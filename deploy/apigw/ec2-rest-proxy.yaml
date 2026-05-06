@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: API Gateway REST API proxy for EC2-hosted backend
 
 Parameters:
@@ -21,10 +21,10 @@ Resources:
         Types:
           - REGIONAL
       Body:
-        swagger: '2.0'
+        swagger: "2.0"
         info:
           title: !Ref ApiName
-          version: '1.0'
+          version: "1.0"
         schemes:
           - https
         paths:
@@ -49,7 +49,7 @@ Resources:
               x-amazon-apigateway-integration:
                 type: http_proxy
                 httpMethod: ANY
-                uri: !Sub '${BackendBaseUrl}/{proxy}'
+                uri: !Sub "${BackendBaseUrl}/{proxy}"
                 passthroughBehavior: when_no_match
                 requestParameters:
                   integration.request.path.proxy: method.request.path.proxy
@@ -64,4 +64,4 @@ Resources:
 Outputs:
   ApiUrl:
     Description: Invoke URL for REST API stage
-    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/'
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/"

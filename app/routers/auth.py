@@ -1,3 +1,22 @@
+"""Authentication routes: login, register, and logout.
+
+Provides user authentication endpoints that manage credentials in the DynamoDB
+login table. Uses plaintext passwords for demo purposes (use bcrypt/JWT in production).
+
+Endpoints:
+  - POST /login — Authenticate user with email and password
+  - POST /register — Create new user account
+  - GET /logout — Logout endpoint (GET variant for browsers)
+  - POST /logout — Logout endpoint (POST variant)
+  - DELETE /logout — Logout endpoint (DELETE variant)
+
+Notes:
+  - All endpoints use the login_table from DynamoDB
+  - Passwords are stored plaintext (demo only; use hashing in production)
+  - Cookies are set but not used by frontend (sessionStorage used instead)
+  - All endpoints log authentication attempts for debugging
+"""
+
 from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
 from fastapi.responses import JSONResponse
@@ -10,6 +29,26 @@ router = APIRouter()
 
 @router.post("/login")
 def login_user(payload: LoginRequest):
+    """Authenticate user with email and password.
+    
+    Queries the login table for the user by email.
+    Verifies password matches stored value.
+    On success, returns user_name and email.
+    On failure, returns 401 Unauthorized.
+    
+    Args:
+        payload: LoginRequest with email and password
+        
+    Returns:
+        JSONResponse with message, user_name, email on success
+        
+    Raises:
+        HTTPException: 401 if email not found or password incorrect
+        
+    Example:
+        POST /login
+        {"email": "user@example.com", "password": "pass123"}
+    """
     logger.debug("Login attempt for email=%s", payload.email)
     result = login_table.get_item(Key={"email": payload.email})
     user = result.get("Item")
@@ -36,6 +75,26 @@ def login_user(payload: LoginRequest):
 
 @router.post("/register")
 def register_user(payload: RegisterRequest):
+    """Register a new user account.
+    
+    Checks if email already exists in the login table.
+    If not, creates new user with email, user_name, and password.
+    On success, returns 200 OK.
+    On failure (email exists), returns 400 Bad Request.
+    
+    Args:
+        payload: RegisterRequest with email, user_name, and password
+        
+    Returns:
+        dict with message on success
+        
+    Raises:
+        HTTPException: 400 if email already exists
+        
+    Example:
+        POST /register
+        {"email": "newuser@example.com", "user_name": "John", "password": "pass123"}
+    """
     logger.debug("Register attempt for email=%s", payload.email)
     result = login_table.get_item(Key={"email": payload.email})
 
