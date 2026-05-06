@@ -114,7 +114,9 @@ You need a Docker-capable environment. **CloudShell does NOT have Docker**. Opti
 - **Option A** — Build locally on your Windows machine and push (requires AWS CLI configured with Learner Lab creds + Docker Desktop running).
 - **Option B** — Launch a temporary EC2 instance (Amazon Linux 2, `t2.small`, attach `LabInstanceProfile`), SSH/Instance Connect in, clone repo, install Docker, build & push.
 
-Below assumes **Option A** (local machine with Docker Desktop):
+### Option A (local machine with Docker Desktop)
+
+Use this if Docker Desktop is already running on your Windows machine:
 
 ```powershell
 # 1. Get Learner Lab temporary credentials and configure AWS CLI locally
@@ -143,6 +145,72 @@ docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/music-subscription-ap
 
 > [!IMPORTANT]
 > The image must be **linux/amd64** architecture. If you're on an ARM Mac, add `--platform linux/amd64` to the `docker build` command. On Windows/Intel, the default is correct.
+
+### Option B (Automated Builder via CloudShell)
+
+Use this if your team members are on different operating systems and cannot build locally. We use an automated script from AWS CloudShell to launch a temporary builder, connect, build, push, and cleanly tear it down.
+
+#### B1. Clone this repository into CloudShell
+
+Open AWS CloudShell. You will need your repository URL (HTTPS).
+
+```bash
+# 1. PASTE IN CLOUDSHELL
+git clone <YOUR_REPO_URL> music-repo
+cd music-repo
+```
+
+#### B2. Launch the temporary builder instance
+
+We have provided a script that launches a temporary Amazon Linux 2023 instance, correctly configures its Security Groups, binds `LabInstanceProfile`, and passes a startup script that prepares Docker and the AWS CLI.
+
+```bash
+# 2. PASTE IN CLOUDSHELL
+bash deploy/builder/launch_builder.sh
+```
+
+Wait for the script to finish. It will print instructions taking you to the next step, including your **Instance ID**.
+
+#### B3. Connect inside the Builder
+
+The setup script gives you a command to run. Paste it in CloudShell:
+
+```bash
+# 3. PASTE IN CLOUDSHELL (Replace with actual ID from previous step output)
+aws ssm start-session --target i-0abcd1234567890ef --region us-east-1
+```
+*(No SSH keys are needed—we use secure AWS Systems Manager!)*
+
+#### B4. Build and Push the image
+
+Our builder script pre-loads a helper onto the temporary instance. While connected to the session (you should see a `sh-5.2$` or similar prompt), run:
+
+```bash
+# 4. PASTE IN SSM SESSION ON THE BUILDER
+bash ~/build_and_push.sh
+```
+
+It will prompt you for your `REPO_URL`. Paste the HTTPS link to your git repository. It will clone the code, log into ECR, build the `music-subscription-api` Docker container, and securely push it.
+
+#### B5. Teardown the temp builder (crucial to save lab budget)
+
+When the push completes successfully:
+
+```bash
+# 5. PASTE IN SSM SESSION ON THE BUILDER (This exits the instance)
+exit
+```
+
+Now, back in your **CloudShell**, copy-paste the teardown commands that the launch script provided earlier:
+
+```bash
+# 6. PASTE IN CLOUDSHELL to clean up
+aws ec2 terminate-instances --instance-ids <YOUR_INSTANCE_ID> --region us-east-1
+aws ec2 delete-security-group --group-id <YOUR_SG_ID> --region us-east-1 || true
+```
+
+> [!TIP]
+> This entirely eliminates having to click through the AWS Console, keeps everyone on identical environments, and guarantees cost cleanup for ad-hoc builders!
 
 ---
 
