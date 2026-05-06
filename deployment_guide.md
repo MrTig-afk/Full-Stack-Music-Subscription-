@@ -1,7 +1,7 @@
-# Music Subscription Backend — Deployment, Probing & Teardown Guide
+# Music Subscription Backend and Frontend — Deployment, Probing & Teardown Guide
 
 > [!NOTE]
-> This guide covers the **3 backend deployments only** (EC2, ECS Fargate, API Gateway + Lambda). The frontend is out of scope. All work happens inside the **AWS Learner Lab** browser console in **`us-east-1`**.
+> This guide covers the **3 backend deployments** (EC2, ECS Fargate, API Gateway + Lambda) and the static frontend in [frontend/](frontend/). All work happens inside the **AWS Learner Lab** browser console in **`us-east-1`**.
 
 ---
 
@@ -11,9 +11,10 @@
 2. [Shared Prerequisites](#shared-prerequisites)
 3. [Backend 1 — EC2 (Container on a VM)](#backend-1--ec2-container-on-a-vm)
 4. [Backend 2 — ECS Fargate (Managed Containers)](#backend-2--ecs-fargate-managed-containers)
-5. [Backend 3 — API Gateway + Lambda (Serverless)](#backend-3--api-gateway--lambda-serverless)
-6. [API Probing Cheat-Sheet (browser-friendly)](#api-probing-cheat-sheet)
-7. [Cost-Control Reminders](#cost-control-reminders)
+5. [Frontend — Static Web App](#frontend--static-web-app)
+6. [Backend 3 — API Gateway + Lambda (Serverless)](#backend-3--api-gateway--lambda-serverless)
+7. [API Probing Cheat-Sheet (browser-friendly)](#api-probing-cheat-sheet)
+8. [Cost-Control Reminders](#cost-control-reminders)
 
 ---
 
@@ -25,6 +26,7 @@
 | Q2 – Music table (title, artist, year, album, image_url) | ✅ [q2_create_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q2_create_music.py) — PK=`title`, SK=`album` |
 | Q3 – Load 2026a2_songs.json losslessly | ✅ [q3_load_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q3_load_music.py) — dedup check via `get_item` before write |
 | Q4 – Download & upload artist images to S3 | ✅ [q4_S3_images.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q4_S3_images.py) — bucket `rmit-music-images-unique-91725` |
+| Frontend — static app in its own directory | ✅ [frontend/](frontend/) — login/register/main/search/subscriptions UI |
 | GSI required | ✅ `ArtistYearIndex` (artist PK, year SK) in [q2_create_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q2_create_music.py) |
 | LSI required | ⚠️ `TitleYearIndex` is **commented out** in q2_create_music.py — spec mandates at least one LSI |
 | Both Query and Scan used | ✅ [music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/app/routers/music.py) — Query on base table, Query on GSI, Scan fallback |
@@ -38,6 +40,9 @@
 
 > [!WARNING]
 > The LSI (`TitleYearIndex`) is currently commented out in `q2_create_music.py`. The spec explicitly requires **at least one GSI and one LSI**. You should uncomment it before creating the music table, or recreate the table with it enabled. LSIs can only be defined at table creation time.
+
+> [!NOTE]
+> The frontend is a static site under [frontend/](frontend/). It talks to the backend over HTTP(S), so if you host it on a different origin, keep the backend CORS settings enabled and point the frontend `apiBaseUrl` at the backend URL you deployed.
 
 ---
 
@@ -138,6 +143,200 @@ docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/music-subscription-ap
 
 > [!IMPORTANT]
 > The image must be **linux/amd64** architecture. If you're on an ARM Mac, add `--platform linux/amd64` to the `docker build` command. On Windows/Intel, the default is correct.
+
+---
+
+## Frontend — Static Web App
+
+The frontend is a plain HTML/CSS/JS app in [frontend/](frontend/). It is intentionally separate from the backend so it can be hosted with the simplest and cheapest static hosting option you prefer.
+
+### Architecture & Deployment Options
+
+```mermaid
+graph LR
+    User -->|HTTPS| Frontend["Frontend<br/>(Static HTML/CSS/JS)"]
+    Frontend -->|HTTP(S)| API["Backend API<br/>(EC2/ECS/Lambda)"]
+    Frontend -->|Config:<br/>apiBaseUrl| ConfigJS["config.js<br/>or Query Param<br/>or localStorage"]
+    ConfigJS -->|Points to| API
+```
+
+| Hosting Option | Cost | Setup | Recommended For |
+|---|---|---|---|
+| **Local Python server** | Free | `python -m http.server 5173` | Local development & testing |
+| **AWS S3 static website** | $0–1/mo | 5 min; S3 + IAM policy | Testing, demos, low-traffic apps |
+| **S3 + CloudFront CDN** | $0–5/mo | 10 min; adds CloudFront distro | Production, global delivery |
+| **GitHub Pages** | Free | Push to `gh-pages` branch | Public projects, no AWS needed |
+| **Vercel / Netlify** | Free–$20/mo | Connect Git repo | Continuous deployment, modern DX |
+| **Simple HTTP server on EC2** | $0–10/mo | 2 min; e.g., `nginx` on existing EC2 | Bundled with backend on same instance |
+
+### Option 1: Local Development
+
+From the project root:
+
+```powershell
+cd frontend
+python -m http.server 5173
+```
+
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The frontend will default to `http://127.0.0.1:8000` for the backend API. To override:
+
+```text
+http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8000
+```
+
+or edit [frontend/config.js](frontend/config.js) directly.
+
+### Option 2: AWS S3 Static Website
+
+#### Step F2.1 — Create & configure S3 bucket
+
+```bash
+# 1. Create bucket (bucket names must be globally unique)
+BUCKET_NAME="music-subscription-frontend-$(date +%s)"
+aws s3 mb s3://$BUCKET_NAME --region us-east-1
+
+# 2. Enable static website hosting
+aws s3 website s3://$BUCKET_NAME \
+  --index-document index.html \
+  --error-document index.html
+
+# 3. Create a bucket policy to allow public read access
+aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy '{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::'"$BUCKET_NAME"'/*"
+  }]
+}'
+
+# 4. Disable block-all-public-access
+aws s3api put-public-access-block \
+  --bucket $BUCKET_NAME \
+  --public-access-block-configuration \
+  "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+# 5. Print the website URL
+aws s3api get-bucket-website --bucket $BUCKET_NAME --region us-east-1 --query 'WebsiteConfiguration.IndexDocument' --output text
+# → Returns: "index.html" (website URL will be: http://$BUCKET_NAME.s3-website-us-east-1.amazonaws.com)
+```
+
+#### Step F2.2 — Update frontend config & upload
+
+Edit [frontend/config.js](frontend/config.js) to set the correct backend URL:
+
+```javascript
+window.APP_CONFIG = {
+  appName: "Music Subscription",
+  apiBaseUrl: "http://<EC2_PUBLIC_DNS>",  // or your backend URL
+};
+```
+
+Then upload all frontend files:
+
+```bash
+aws s3 sync ./frontend s3://$BUCKET_NAME \
+  --exclude ".git/*" \
+  --exclude "README.md" \
+  --exclude "*.md" \
+  --region us-east-1
+```
+
+#### Step F2.3 — Access the frontend
+
+```text
+http://<BUCKET_NAME>.s3-website-us-east-1.amazonaws.com
+```
+
+> [!NOTE]
+> S3 static websites must be accessed via HTTP, not HTTPS (unless you add CloudFront).
+
+### Option 3: CloudFront CDN in front of S3
+
+For HTTPS and global caching:
+
+```bash
+# Create a CloudFront distribution
+aws cloudfront create-distribution \
+  --origin-domain-name $BUCKET_NAME.s3-website-us-east-1.amazonaws.com \
+  --default-root-object index.html \
+  --enabled \
+  --region us-east-1 | jq '.Distribution.DomainName'
+# → Returns CloudFront domain name (e.g., d12345.cloudfront.net)
+```
+
+Then access via:
+
+```text
+https://d12345.cloudfront.net
+```
+
+### Option 4: GitHub Pages (if repo is public)
+
+1. Push the `frontend/` folder to your GitHub repo.
+2. In **Settings → Pages**, select "Deploy from a branch" and choose `main` → `/docs` (or create a `.github/workflows/deploy.yml`).
+3. Access at `https://<USERNAME>.github.io/<REPO_NAME>/frontend/`.
+
+### Configuring the API base URL for different backends
+
+The frontend resolves the API base URL in this order:
+1. **Query parameter:** `?apiBase=<URL>`
+2. **localStorage:** Previously saved value from query parameter
+3. **config.js default:** `http://127.0.0.1:8000`
+
+**For each backend deployment, update config.js and redeploy:**
+
+| Backend Target | API Base URL |
+|---|---|
+| **EC2 direct** | `http://<EC2_PUBLIC_DNS>` |
+| **EC2 via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
+| **ECS Fargate via ALB** | `http://<ALB_DNS_NAME>` |
+| **ECS Fargate via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
+| **Lambda via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
+
+**Example: deploying for ECS backend**
+
+```bash
+# 1. Get ALB DNS name
+ALB_DNS=$(aws elbv2 describe-load-balancers \
+  --region us-east-1 | \
+  jq -r '.LoadBalancers[0].DNSName')
+
+# 2. Update config.js
+sed -i "s|apiBaseUrl: \".*\"|apiBaseUrl: \"http://$ALB_DNS\"|" frontend/config.js
+
+# 3. Re-upload to S3
+aws s3 sync ./frontend s3://$BUCKET_NAME \
+  --exclude ".git/*" --exclude "*.md" \
+  --region us-east-1
+```
+
+### CORS note
+
+The backend FastAPI app includes permissive CORS middleware (see [app/main.py](app/main.py)) so the static frontend can call it from a separate origin. If you want to narrow allowed origins later, set the `FRONTEND_ORIGINS` environment variable to a comma-separated list:
+
+```bash
+# Example: only allow S3-hosted frontend
+export FRONTEND_ORIGINS="http://music-subscription-frontend-XXXXX.s3-website-us-east-1.amazonaws.com"
+```
+
+### Teardown Frontend
+
+**S3 cleanup:**
+
+```bash
+# Remove all objects from bucket
+aws s3 rm s3://$BUCKET_NAME --recursive
+
+# Delete bucket
+aws s3 rb s3://$BUCKET_NAME
+
+# If using CloudFront, disable and delete the distribution
+aws cloudfront list-distributions --region us-east-1 | \
+  jq '.DistributionList.Items[] | select(.Origins.Items[0].DomainName | contains($BUCKET_NAME)) | .Id'
+# Then: aws cloudfront delete-distribution --id <DIST_ID> --region us-east-1
+```
 
 ---
 
