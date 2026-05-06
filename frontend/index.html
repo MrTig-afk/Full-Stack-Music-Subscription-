@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Music Subscription frontend" />
+    <title>Music Subscription</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Load configuration before app logic -->
+    <script defer src="config.js"></script>
+    <!-- Main application logic (IIFE-scoped) -->
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <!-- Decorative backdrop gradients for visual appeal -->
+    <div class="backdrop backdrop-a"></div>
+    <div class="backdrop backdrop-b"></div>
+
+    <main class="shell">
+      <!-- Brand header with API base URL display for debugging/demos -->
+      <section class="brand-strip">
+        <div>
+          <p class="eyebrow">Cloud music subscription</p>
+          <h1>Music Subscription</h1>
+        </div>
+        <div class="api-chip">
+          <span class="api-label">API</span>
+          <span id="api-base-label">http://127.0.0.1:8000</span>
+        </div>
+      </section>
+
+      <!-- Authentication section: login/register forms (shown before login) -->
+      <section id="auth-view" class="auth-grid">
+        <!-- Hero card explaining app purpose and features -->
+        <div class="hero-card">
+          <p class="eyebrow">Project spec aligned</p>
+          <h2>
+            Login, register, search, subscribe, and manage songs from DynamoDB.
+          </h2>
+          <p class="hero-copy">
+            The frontend uses the REST API directly and keeps the login, query,
+            and subscription flows separate so the app can be hosted
+            independently from any backend.
+          </p>
+          <ul class="hero-list">
+            <li>Login and register validation with exact spec messages</li>
+            <li>Query by title, artist, album, or year with AND matching</li>
+            <li>Subscription list with S3 artist images and remove actions</li>
+          </ul>
+        </div>
+
+        <!-- Authentication panel with tabbed login/register forms -->
+        <div class="panel auth-panel">
+          <div class="tab-row" role="tablist" aria-label="Authentication mode">
+            <button id="login-tab" class="tab active" type="button">
+              Login
+            </button>
+            <button id="register-tab" class="tab" type="button">
+              Register
+            </button>
+          </div>
+
+          <!-- Login form: email and password -->
+          <form id="login-form" class="auth-form" novalidate>
+            <div class="field">
+              <label for="login-email">Email</label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="login-password">Password</label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Your password"
+                required
+              />
+            </div>
+            <p id="login-message" class="message error" hidden></p>
+            <button id="login-submit" class="button primary" type="submit">
+              Login
+            </button>
+            <button id="switch-to-register" class="button ghost" type="button">
+              Create an account
+            </button>
+          </form>
+
+          <form id="register-form" class="auth-form" hidden novalidate>
+            <div class="field">
+              <label for="register-email">Email</label>
+              <input
+                id="register-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="register-username">Username</label>
+              <input
+                id="register-username"
+                name="username"
+                type="text"
+                autocomplete="name"
+                placeholder="Your display name"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="register-password">Password</label>
+              <input
+                id="register-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Choose a password"
+                required
+              />
+            </div>
+            <p id="register-message" class="message error" hidden></p>
+            <p id="register-success" class="message success" hidden></p>
+            <button id="register-submit" class="button primary" type="submit">
+              Register
+            </button>
+            <button id="switch-to-login" class="button ghost" type="button">
+              Back to login
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section id="app-view" class="app-grid" hidden>
+        <header class="panel topbar">
+          <div>
+            <p class="eyebrow">Signed in</p>
+            <h2 id="user-name">User</h2>
+          </div>
+          <button id="logout-button" class="button ghost danger" type="button">
+            Logout
+          </button>
+        </header>
+
+        <section class="panel user-panel">
+          <p class="section-title">User area</p>
+          <p class="user-summary">
+            Welcome back, <strong id="user-display">User</strong>.
+          </p>
+          <p class="muted">
+            Your session is stored in the browser while you use the app.
+          </p>
+        </section>
+
+        <section class="panel subscription-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-title">Subscription area</p>
+              <p class="muted">
+                Songs you have subscribed to will appear here.
+              </p>
+            </div>
+            <button
+              id="refresh-subscriptions"
+              class="button subtle"
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+          <div id="subscriptions-empty" class="empty-state">
+            No subscriptions yet. Search for songs below and subscribe.
+          </div>
+          <div
+            id="subscriptions-list"
+            class="card-list"
+            aria-live="polite"
+          ></div>
+        </section>
+
+        <section class="panel query-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-title">Query area</p>
+              <p class="muted">
+                Fill at least one field. Multiple criteria are combined with
+                AND.
+              </p>
+            </div>
+          </div>
+
+          <form id="query-form" class="query-form" novalidate>
+            <div class="field">
+              <label for="query-title">Title</label>
+              <input
+                id="query-title"
+                name="title"
+                type="text"
+                placeholder="e.g. Love Story"
+              />
+            </div>
+            <div class="field">
+              <label for="query-artist">Artist</label>
+              <input
+                id="query-artist"
+                name="artist"
+                type="text"
+                placeholder="e.g. Taylor Swift"
+              />
+            </div>
+            <div class="field">
+              <label for="query-album">Album</label>
+              <input
+                id="query-album"
+                name="album"
+                type="text"
+                placeholder="e.g. Fearless"
+              />
+            </div>
+            <div class="field">
+              <label for="query-year">Year</label>
+              <input
+                id="query-year"
+                name="year"
+                type="number"
+                inputmode="numeric"
+                placeholder="e.g. 2008"
+              />
+            </div>
+            <div class="query-actions">
+              <p id="query-message" class="message error" hidden></p>
+              <button id="query-submit" class="button primary" type="submit">
+                Query
+              </button>
+            </div>
+          </form>
+
+          <div class="section-head results-head">
+            <div>
+              <p class="section-title">Results</p>
+              <p class="muted">
+                Search results are listed below with subscription controls.
+              </p>
+            </div>
+          </div>
+          <div id="results-empty" class="empty-state hidden">
+            No result is retrieved. Please query again
+          </div>
+          <div id="results-list" class="card-list" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
