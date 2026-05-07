@@ -212,7 +212,6 @@ aws ec2 delete-security-group --group-id <YOUR_SG_ID> --region us-east-1 || true
 > [!TIP]
 > This entirely eliminates having to click through the AWS Console, keeps everyone on identical environments, and guarantees cost cleanup for ad-hoc builders!
 
-<<<<<<< HEAD
 ---
 
 ## Frontend — Static Web App
@@ -407,8 +406,6 @@ aws cloudfront list-distributions --region us-east-1 | \
 # Then: aws cloudfront delete-distribution --id <DIST_ID> --region us-east-1
 ```
 
-=======
->>>>>>> 8fcfb3c (Document CloudShell builder deployment flow)
 ---
 
 ## Backend 1 — EC2 (Container on a VM)
