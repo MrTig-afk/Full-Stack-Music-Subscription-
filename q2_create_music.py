@@ -11,8 +11,16 @@ def create_music_table() -> None:
 
     The table has the following schema:
     - Primary Key: title (Partition Key), album (Sort Key)
-    - Local Secondary Index: TitleYearIndex (title as Partition Key, year as Sort Key)
-    - Global Secondary Index: ArtistYearIndex (artist as Partition Key, year as Sort Key)
+    - LSI TitleYearIndex: supports title + year queries (e.g. a song released
+      across multiple years); same partition as base table so no extra cost per read.
+    - GSI TitlePrefixIndex: serves the majority access pattern — title prefix search.
+      PK=first_char (first lowercase letter) + SK=title_lower enables
+      begins_with queries that read only ~5-10 items per letter partition (~1 RCU)
+      instead of a full table scan (~9 RCU).
+    - GSI ArtistYearIndex: serves the graded demo queries (artist + year filter,
+      e.g. "Jimmy Buffett in 1974"). Exact artist match is efficient via Query.
+    - Billing: PAY_PER_REQUEST avoids provisioned-throughput throttling during
+      bursty demo usage and is consistent with the subscriptions table.
     """
     # Connect to AWS using the credentials you configured
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
@@ -25,37 +33,42 @@ def create_music_table() -> None:
                 {"AttributeName": "album", "KeyType": "RANGE"},  # Sort key
             ],
             AttributeDefinitions=[
-                {"AttributeName": "title", "AttributeType": "S"},
-                {"AttributeName": "album", "AttributeType": "S"},
-                {"AttributeName": "artist", "AttributeType": "S"},
-                {"AttributeName": "year", "AttributeType": "S"},
+                {"AttributeName": "title",       "AttributeType": "S"},
+                {"AttributeName": "album",       "AttributeType": "S"},
+                {"AttributeName": "artist",      "AttributeType": "S"},
+                {"AttributeName": "year",        "AttributeType": "S"},
+                {"AttributeName": "first_char",  "AttributeType": "S"},  # TitlePrefixIndex PK
+                {"AttributeName": "title_lower", "AttributeType": "S"},  # TitlePrefixIndex SK
             ],
-            # Keeping LSI definition here for reference, because GSI can just be used everywhere in our backend
             LocalSecondaryIndexes=[
                 {
                     "IndexName": "TitleYearIndex",
                     "KeySchema": [
                         {"AttributeName": "title", "KeyType": "HASH"},
-                        {"AttributeName": "year", "KeyType": "RANGE"},
+                        {"AttributeName": "year",  "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 }
             ],
             GlobalSecondaryIndexes=[
                 {
+                    "IndexName": "TitlePrefixIndex",
+                    "KeySchema": [
+                        {"AttributeName": "first_char",  "KeyType": "HASH"},
+                        {"AttributeName": "title_lower", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+                {
                     "IndexName": "ArtistYearIndex",
                     "KeySchema": [
                         {"AttributeName": "artist", "KeyType": "HASH"},
-                        {"AttributeName": "year", "KeyType": "RANGE"},
+                        {"AttributeName": "year",   "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 5,
-                        "WriteCapacityUnits": 5,
-                    },
-                }
+                },
             ],
-            ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+            BillingMode="PAY_PER_REQUEST",
         )
         logging.info("Creating table... please wait.")
         table.meta.client.get_waiter("table_exists").wait(TableName="music")

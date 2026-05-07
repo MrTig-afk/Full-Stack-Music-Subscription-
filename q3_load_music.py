@@ -47,6 +47,16 @@ def load_music_data():
             song["music_id"] = build_music_id(str(key["title"]), str(key["album"]))
             song["year"] = str(song.get("year", "")).strip()
 
+            # Computed lowercase attributes for case-insensitive DynamoDB filtering
+            # and for the TitlePrefixIndex GSI (first_char PK, title_lower SK).
+            title_val  = str(song.get("title",  ""))
+            artist_val = str(song.get("artist", ""))
+            album_val  = str(song.get("album",  ""))
+            song["title_lower"]  = title_val.lower()
+            song["artist_lower"] = artist_val.lower()
+            song["album_lower"]  = album_val.lower()
+            song["first_char"]   = title_val[0].lower() if title_val and title_val[0].isalpha() else "#"
+
             # Query DynamoDB for existing item with same key
             try:
                 resp = table.get_item(Key=key)

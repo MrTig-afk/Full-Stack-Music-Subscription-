@@ -1,327 +1,147 @@
-# Cloud Computing - Music Database ETL Pipeline
+# Music Subscription App
 
-This project implements a cloud-based infrastructure for managing a music library using **AWS DynamoDB** and **S3**. It includes scripts for schema creation, batch data ingestion, an automated image processing pipeline, and a static web frontend for the subscription app.
+A cloud-based music subscription web application built on AWS. Users can log in, search for songs, and manage personal subscriptions. The FastAPI backend connects to DynamoDB and S3; the frontend is a static HTML/JS/CSS app.
 
-## 🚀 Project Overview
-
-- **Database:** Amazon DynamoDB (NoSQL)
-- **Storage:** Amazon S3 (Object Storage)
-- **Language:** Python 3.x
-- **SDK:** Boto3
+**Tech stack:** Python 3.12, FastAPI, Boto3, Uvicorn, Mangum | HTML5, Vanilla JS | DynamoDB, S3, EC2, ECS Fargate, Lambda + API Gateway
 
 ---
 
-## 🛠️ Environment Setup
+## Local Development
 
-### 1. Local Configuration
-
-Clone the repository and set up your virtual environment:
-
-Preferred (if `uv` installed):
+### Install dependencies
 
 ```bash
 uv sync --no-dev
 ```
 
-Fallback (without `uv`):
-
-```bash
-# Create and activate virtual environment
-python -m venv venv
-source venv/Scripts/activate  # Windows (Git Bash)
-# source venv/bin/activate    # Mac/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 2. AWS CLI Configuration
-
-You must have the AWS CLI installed. Use the **DevTeam** credentials provided in our private channel:
+### Configure AWS credentials
 
 ```bash
 aws configure
+# For Learner Lab, also set AWS_SESSION_TOKEN:
+export AWS_SESSION_TOKEN=<paste from AWS Details>
 ```
 
-**Required Settings:**
-
-- **AWS Access Key ID:** [Paste Team Key]
-- **AWS Secret Access Key:** [Paste Team Secret]
-- **Default region name:** `us-east-1` (Required for consistency)
-- **Default output format:** `json`
-
----
-
-## 📂 Project Structure
-
-| File                 | Description                                                                 |
-| :------------------- | :-------------------------------------------------------------------------- |
-| `q1_create_login.py` | Creates the `login` table and populates 10 RMIT student entities.           |
-| `q2_create_music.py` | Defines the `music` table schema (Title = Partition Key, Album = Sort Key). |
-| `q3_load_music.py`   | Batch uploads 137 songs from the JSON dataset to DynamoDB.                  |
-| `q4_s3_images.py`    | Downloads artist images and uploads them to the unique S3 bucket.           |
-| `frontend/`          | Static HTML/CSS/JS frontend for login, register, query, and subscriptions.  |
-| `2026a2_songs.json`  | The raw source data.                                                        |
-
----
-
-## ⚡ How to Run
-
-Run the scripts in the following order to ensure dependencies (like table creation) are met:
-
-Preferred (if `uv` installed):
-
-1. **Initialize Login Table:** `uv run python q1_create_login.py`
-2. **Initialize Music Table:** `uv run python q2_create_music.py`
-3. **Load Song Data:** `uv run python q3_load_music.py`
-4. **Transfer Images:** `uv run python q4_s3_images.py`
-
-Fallback (without `uv`):
-
-1. **Initialize Login Table:** `python q1_create_login.py`
-2. **Initialize Music Table:** `python q2_create_music.py`
-3. **Load Song Data:** `python q3_load_music.py`
-4. **Transfer Images:** `python q4_s3_images.py`
-
----
-
-## 📊 Verification
-
-You can verify the deployment by running:
-
-```bash
-# Check DynamoDB item count
-aws dynamodb scan --table-name music --select "COUNT"
-
-# List S3 bucket contents
-aws s3 ls s3://your-unique-bucket-name/
-```
-
-## 🌐 FastAPI Backend
-
-This FastAPI application provides backend APIs for the music subscription system. It connects to AWS DynamoDB and supports user authentication, song search, and subscription management.
-
-## 🖥️ Frontend
-
-The static frontend lives in [frontend/](frontend/) and consumes the backend REST API directly. See [deployment_guide.md](deployment_guide.md) for the recommended hosting path and backend URL configuration.
-
----
-
-## 🚀 Features
-
-- User Registration
-- User Login & Logout
-- Music Search (by title, artist, album, year)
-- Subscribe to songs
-- Remove subscribed songs
-- View user subscriptions
-
----
-
-## 🔗 API Endpoints
-
-- POST `/register` → Register new user
-- POST `/login` → Login user
-- GET `/logout` → Logout
-- POST `/logout` → Logout
-- DELETE `/logout` → Logout
-- GET `/health` → Health check
-- GET `/songs/search?title=&artist=&album=&year=` → Search songs (query params)
-- POST `/songs/search` → Search songs
-- GET `/subscriptions/{email}` → Get user subscriptions
-- POST `/subscriptions` → Add subscription
-- DELETE `/subscriptions` → Remove subscription
-- DELETE `/subscriptions/{email}/{music_id}` → Remove subscription by resource path
-
----
-
-## ⚙️ Setup & Run
-
-### 1. Activate virtual environment
-
-Preferred (if `uv` installed):
-
-```bash
-# No manual activation needed; uv manages env per project
-uv sync --no-dev
-```
-
-Fallback (without `uv`):
-
-```bash
-# Windows
-source venv/Scripts/activate
-
-# Mac/Linux
-source venv/bin/activate
-```
-
-### 2. Install dependencies
-
-Preferred (if `uv` installed):
-
-```bash
-uv sync --no-dev
-```
-
-Fallback (without `uv`):
-
-```bash
-pip install fastapi uvicorn boto3 pydantic
-```
-
-### 3. Configure AWS
-
-```bash
-aws configure
-```
-
-(For AWS Learner Lab, use access key, secret key, and session token.)
-
-### 4. Run FastAPI
-
-Preferred (if `uv` installed):
+### Run backend
 
 ```bash
 uv run dev
+# → http://127.0.0.1:8000
+# → http://127.0.0.1:8000/docs  (Swagger UI)
 ```
 
-Fallback (without `uv`):
+### Run frontend
 
 ```bash
-uvicorn app.main:app --reload
+cd frontend && python -m http.server 5173
+# → http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8000
 ```
-
-### 5. Test APIs
-
-Open in browser: <http://127.0.0.1:8000/docs>
-
-🧪 Testing Flow
-Register → /register
-Login → /login
-Search songs → /songs/search
-Subscribe → /subscriptions
-View subscriptions → /subscriptions/{email}
-Remove subscription → /subscriptions (DELETE)
-Logout → /logout
 
 ---
 
-## 🧰 Dependency Management (uv)
+## Database Initialisation
 
-This project is managed by `uv` via `pyproject.toml` and `uv.lock`.
+Run these scripts once in order. The reset script handles teardown and re-runs all four cleanly.
 
 ```bash
-# sync local environment
+python q1_create_login.py           # login table + 10 seed users
+python q2_create_music.py           # music table + indexes
+python q3_load_music.py             # load 137 songs from 2026a2_songs.json
+python create_subscriptions_table.py
+python q4_S3_images.py              # download artist images → upload to S3
+```
+
+**Full reset (CloudShell):**
+
+```bash
+chmod +x reset_music_table.sh && ./reset_music_table.sh
+```
+
+Drops and recreates all three tables, then reruns all four DDL scripts. Expected final counts: `login: 10`, `music: 137`, `subscriptions: 0`.
+
+---
+
+## DynamoDB Schema
+
+### `login`
+| Key | Type |
+|---|---|
+| `email` (PK) | String |
+
+Attributes: `user_name`, `password`. Billing: PAY_PER_REQUEST.
+
+### `music`
+| Key | Type |
+|---|---|
+| `title` (PK) | String |
+| `album` (SK) | String |
+
+Attributes: `artist`, `year`, `img_url`, `music_id`, `title_lower`, `artist_lower`, `album_lower`, `first_char`.
+
+Indexes:
+
+| Index | Type | Keys | Purpose |
+|---|---|---|---|
+| `TitleYearIndex` | LSI | PK: `title`, SK: `year` | Title + year range queries |
+| `TitlePrefixIndex` | GSI | PK: `first_char`, SK: `title_lower` | Efficient prefix-based title search (majority access pattern) |
+| `ArtistYearIndex` | GSI | PK: `artist`, SK: `year` | Artist and artist + year queries (demo patterns) |
+
+Billing: PAY_PER_REQUEST.
+
+### `subscriptions`
+| Key | Type |
+|---|---|
+| `user_email` (PK) | String |
+| `music_id` (SK) | String — `"{title}#{album}"` |
+
+Billing: PAY_PER_REQUEST.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `POST` | `/register` | Register new user |
+| `POST` | `/login` | Authenticate user |
+| `GET/POST/DELETE` | `/logout` | End session |
+| `POST` | `/songs/search` | Search songs (JSON body) |
+| `GET` | `/songs/search` | Search songs (query params) |
+| `GET` | `/subscriptions/{email}` | List user subscriptions |
+| `POST` | `/subscriptions` | Add subscription |
+| `DELETE` | `/subscriptions` | Remove subscription (JSON body) |
+| `DELETE` | `/subscriptions/{email}/{music_id}` | Remove subscription (path params) |
+
+All search fields (`title`, `artist`, `album`, `year`) are optional but at least one is required. Title, artist, and album use case-insensitive substring matching. Multiple fields are AND-combined by default; if AND returns fewer than 3 results, top OR matches are appended.
+
+---
+
+## Deployment
+
+Three independent backend deployments are supported, each fully functional and independently validated:
+
+| Backend | Entry point | Frontend hosting |
+|---|---|---|
+| EC2 | Docker container on port 80 | S3 static website |
+| ECS Fargate | Docker container via ALB | S3 static website |
+| Lambda | `lambda_handler.handler` (Mangum) via API Gateway | S3 static website |
+
+See **[deployment_guide.md](deployment_guide.md)** for step-by-step instructions covering all three backends, the Docker build/push workflow, API Gateway setup, and teardown.
+
+---
+
+## Dependency Management
+
+This project uses `uv` with `pyproject.toml` and `uv.lock`.
+
+```bash
+# Sync environment
 uv sync --no-dev
 
-# after dependency changes in pyproject.toml
+# After editing pyproject.toml
 uv lock
 
-# generate requirements.txt for environments that still need it
-uv export --no-emit-workspace --no-emit-project --no-hashes --no-annotate --no-dev > .\requirements.txt
+# Regenerate requirements.txt (used by Docker and CloudShell)
+uv export --no-emit-workspace --no-emit-project --no-hashes --no-annotate --no-dev > requirements.txt
 ```
-
----
-
-## ☁️ Backend Deployment Artifacts
-
-Region is standardized to `us-east-1`.
-
-### 1) EC2 (containerized app)
-
-- `Dockerfile` builds the FastAPI backend image with `uv`.
-- `deploy/ec2/user_data.sh` bootstraps an EC2 instance, pulls from ECR, and runs the container on port `80`.
-- `deploy/apigw/ec2-rest-proxy.yaml` and `deploy/apigw/deploy-apigw-ec2.sh` expose EC2 backend through API Gateway REST API.
-
-### 2) ECS (containerized app)
-
-- `deploy/ecs/task-definition.json` is the baseline Fargate task definition.
-- `deploy/ecs/deploy-ecs.sh` builds/pushes image to ECR and updates ECS service.
-- `deploy/apigw/ecs-rest-proxy.yaml` and `deploy/apigw/deploy-apigw-ecs.sh` expose ECS backend (usually ALB URL) through API Gateway REST API.
-
-```powershell
-./deploy/ecs/deploy-ecs.sh `
-	--account-id <AWS_ACCOUNT_ID> `
-	--cluster <ECS_CLUSTER_NAME> `
-	--service <ECS_SERVICE_NAME> `
-	--lab-role-arn <LABROLE_ARN> `
-	--bucket <S3_BUCKET_NAME> `
-	--region us-east-1
-```
-
-### 3) API Gateway + Lambda (serverless)
-
-- `lambda_handler.py` contains the `Mangum` adapter for FastAPI.
-- `deploy/lambda/template.yaml` defines REST API routes and Lambda deployment.
-
-```bash
-sam build -t deploy/lambda/template.yaml
-sam deploy \
-	--stack-name music-subscription-lambda \
-	--region us-east-1 \
-	--capabilities CAPABILITY_IAM \
-	--parameter-overrides \
-		LabRoleArn=<LABROLE_ARN> \
-		S3BucketName=<S3_BUCKET_NAME>
-```
-
-### API Gateway for EC2 backend
-
-```powershell
-./deploy/apigw/deploy-apigw-ec2.sh `
-	--backend-base-url http://<EC2_PUBLIC_DNS_OR_IP> `
-	--region us-east-1
-```
-
-### API Gateway for ECS backend
-
-```powershell
-./deploy/apigw/deploy-apigw-ecs.sh `
-	--backend-base-url http://<ECS_ALB_DNS_NAME> `
-	--region us-east-1
-```
-
-Note: EC2/ECS backend must be reachable from API Gateway over HTTP/HTTPS. If backend sits in private subnet only, use VPC Link pattern instead of public proxy integration.
-
----
-
-## 📦 Deployment & Packaging
-
-This project is **ready for deployment to AWS** with three independent backend options and a static frontend.
-
-### Quick Links
-
-- **[DEPLOYMENT_PACKAGING.md](DEPLOYMENT_PACKAGING.md)** — Overview of deployment options, cost analysis, and quick-start guide
-- **[deployment_guide.md](deployment_guide.md)** — Complete step-by-step instructions for all 3 backends (EC2, ECS, Lambda) + frontend
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** — Executable testing checklist for validating all deployment scenarios
-- **[frontend/README.md](frontend/README.md)** — Frontend-specific documentation and hosting options
-- **[deploy/frontend/deploy-frontend-s3.sh](deploy/frontend/deploy-frontend-s3.sh)** — Automated script to deploy frontend to S3
-
-### Deployment Options
-
-| Backend | Frontend | Cost | Setup Time | Best For |
-|---|---|---|---|---|
-| **EC2** | S3 | ~$5–10/mo | ~15 min | Learning, demos |
-| **ECS Fargate** | S3 | ~$15–30/mo | ~20 min | Production, auto-scaling |
-| **Lambda** | S3 | ~$5–10/mo | ~5 min | Serverless, minimal ops |
-| **Local Dev** | Local Server | Free | ~1 min | Testing, development |
-
-### Quick Start
-
-```bash
-# 1. Create DynamoDB tables and S3 bucket (shared for all backends)
-python q1_create_login.py
-python q2_create_music.py
-python q3_load_music.py
-python create_subscriptions_table.py
-python q4_S3_images.py
-
-# 2. Deploy frontend to S3 (after deploying backend)
-.\deploy-frontend-s3.ps1 -ApiBaseUrl "http://<your-backend-url>"
-
-# 3. Test in browser
-# Open http://<frontend-s3-url>
-```
-
-For detailed instructions, see [DEPLOYMENT_PACKAGING.md](DEPLOYMENT_PACKAGING.md).
