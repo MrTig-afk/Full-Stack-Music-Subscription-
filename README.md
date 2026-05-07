@@ -232,22 +232,22 @@ Region is standardized to `us-east-1`.
 
 - `Dockerfile` builds the FastAPI backend image with `uv`.
 - `deploy/ec2/user_data.sh` bootstraps an EC2 instance, pulls from ECR, and runs the container on port `80`.
-- `deploy/apigw/ec2-rest-proxy.yaml` and `deploy/apigw/deploy-ec2.ps1` expose EC2 backend through API Gateway REST API.
+- `deploy/apigw/ec2-rest-proxy.yaml` and `deploy/apigw/deploy-apigw-ec2.sh` expose EC2 backend through API Gateway REST API.
 
 ### 2) ECS (containerized app)
 
 - `deploy/ecs/task-definition.json` is the baseline Fargate task definition.
-- `deploy/ecs/deploy.ps1` builds/pushes image to ECR and updates ECS service.
-- `deploy/apigw/ecs-rest-proxy.yaml` and `deploy/apigw/deploy-ecs.ps1` expose ECS backend (usually ALB URL) through API Gateway REST API.
+- `deploy/ecs/deploy-ecs.sh` builds/pushes image to ECR and updates ECS service.
+- `deploy/apigw/ecs-rest-proxy.yaml` and `deploy/apigw/deploy-apigw-ecs.sh` expose ECS backend (usually ALB URL) through API Gateway REST API.
 
 ```powershell
-pwsh -File .\deploy\ecs\deploy.ps1 `
-	-AccountId <AWS_ACCOUNT_ID> `
-	-Cluster <ECS_CLUSTER_NAME> `
-	-Service <ECS_SERVICE_NAME> `
-	-LabRoleArn <LABROLE_ARN> `
-	-Bucket <S3_BUCKET_NAME> `
-	-Region us-east-1
+./deploy/ecs/deploy-ecs.sh `
+	--account-id <AWS_ACCOUNT_ID> `
+	--cluster <ECS_CLUSTER_NAME> `
+	--service <ECS_SERVICE_NAME> `
+	--lab-role-arn <LABROLE_ARN> `
+	--bucket <S3_BUCKET_NAME> `
+	--region us-east-1
 ```
 
 ### 3) API Gateway + Lambda (serverless)
@@ -269,17 +269,17 @@ sam deploy \
 ### API Gateway for EC2 backend
 
 ```powershell
-pwsh -File .\deploy\apigw\deploy-ec2.ps1 `
-	-BackendBaseUrl http://<EC2_PUBLIC_DNS_OR_IP> `
-	-Region us-east-1
+./deploy/apigw/deploy-apigw-ec2.sh `
+	--backend-base-url http://<EC2_PUBLIC_DNS_OR_IP> `
+	--region us-east-1
 ```
 
 ### API Gateway for ECS backend
 
 ```powershell
-pwsh -File .\deploy\apigw\deploy-ecs.ps1 `
-	-BackendBaseUrl http://<ECS_ALB_DNS_NAME> `
-	-Region us-east-1
+./deploy/apigw/deploy-apigw-ecs.sh `
+	--backend-base-url http://<ECS_ALB_DNS_NAME> `
+	--region us-east-1
 ```
 
 Note: EC2/ECS backend must be reachable from API Gateway over HTTP/HTTPS. If backend sits in private subnet only, use VPC Link pattern instead of public proxy integration.
@@ -296,7 +296,7 @@ This project is **ready for deployment to AWS** with three independent backend o
 - **[deployment_guide.md](deployment_guide.md)** — Complete step-by-step instructions for all 3 backends (EC2, ECS, Lambda) + frontend
 - **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** — Executable testing checklist for validating all deployment scenarios
 - **[frontend/README.md](frontend/README.md)** — Frontend-specific documentation and hosting options
-- **[deploy-frontend-s3.ps1](deploy-frontend-s3.ps1)** — Automated script to deploy frontend to S3
+- **[deploy/frontend/deploy-frontend-s3.sh](deploy/frontend/deploy-frontend-s3.sh)** — Automated script to deploy frontend to S3
 
 ### Deployment Options
 

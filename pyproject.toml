@@ -27,6 +27,7 @@ dev = [
 
 [tool.uv]
 package = true
+default-groups = []
 
 [tool.uv.build-backend]
 module-name = "app"

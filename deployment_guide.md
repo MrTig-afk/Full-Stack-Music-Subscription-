@@ -470,11 +470,11 @@ Expected response:
 
 ### Step 1.3 — Deploy API Gateway proxy for EC2
 
-From your **local PowerShell** (with AWS env vars set):
+From your **local shell or CloudShell** (with AWS env vars set):
 
 ```powershell
-pwsh -File .\deploy\apigw\deploy-ec2.ps1 `
-  -BackendBaseUrl "http://<EC2_PUBLIC_DNS>"
+./deploy/apigw/deploy-apigw-ec2.sh `
+  --backend-base-url "http://<EC2_PUBLIC_DNS>"
 ```
 
 This creates a CloudFormation stack `music-subscription-apigw-ec2` and prints the **API Gateway URL**. Note it down.
@@ -619,16 +619,16 @@ aws elbv2 describe-load-balancers \
 
 ### Step 2.4 — Deploy the ECS service using the deploy script
 
-From your **local PowerShell** (with AWS env vars + Docker Desktop running):
+From your **local shell or CloudShell builder workflow** (with AWS env vars + Docker Desktop running):
 
 ```powershell
-pwsh -File .\deploy\ecs\deploy.ps1 `
-  -AccountId <ACCOUNT_ID> `
-  -Cluster music-subscription-cluster `
-  -Service music-subscription-service `
-  -LabRoleArn "arn:aws:iam::<ACCOUNT_ID>:role/LabRole" `
-  -Bucket rmit-music-images-unique-91725 `
-  -Region us-east-1
+./deploy/ecs/deploy-ecs.sh `
+  --account-id <ACCOUNT_ID> `
+  --cluster music-subscription-cluster `
+  --service music-subscription-service `
+  --lab-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/LabRole" `
+  --bucket rmit-music-images-unique-91725 `
+  --region us-east-1
 ```
 
 > [!NOTE]
@@ -662,8 +662,8 @@ Expected: `{"status": "ok"}`
 ### Step 2.6 — Deploy API Gateway proxy for ECS
 
 ```powershell
-pwsh -File .\deploy\apigw\deploy-ecs.ps1 `
-  -BackendBaseUrl "http://<ALB_DNS_NAME>"
+./deploy/apigw/deploy-apigw-ecs.sh `
+  --backend-base-url "http://<ALB_DNS_NAME>"
 ```
 
 Note the API Gateway URL printed at the end.
