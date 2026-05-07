@@ -7,48 +7,201 @@
 
 ## Table of Contents
 
-1. [Project-Spec Analysis](#project-spec-analysis)
-2. [Shared Prerequisites](#shared-prerequisites)
-3. [Backend 1 — EC2 (Container on a VM)](#backend-1--ec2-container-on-a-vm)
+1. [Shared Prerequisites](#shared-prerequisites)
+2. [Frontend — EC2 + nginx](#frontend--ec2--nginx)
+3. [Backend 1 — EC2 (Docker Container)](#backend-1--ec2-docker-container)
 4. [Backend 2 — ECS Fargate (Managed Containers)](#backend-2--ecs-fargate-managed-containers)
-5. [Frontend — Static Web App](#frontend--static-web-app)
-6. [Backend 3 — API Gateway + Lambda (Serverless)](#backend-3--api-gateway--lambda-serverless)
-7. [API Probing Cheat-Sheet (browser-friendly)](#api-probing-cheat-sheet)
-8. [Cost-Control Reminders](#cost-control-reminders)
-
----
-
-## Project-Spec Analysis
-
-| Spec Requirement | Implementation Status |
-|---|---|
-| Q1 – Login table (10 entities, email/user_name/password) | ✅ [q1_create_login.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q1_create_login.py) |
-| Q2 – Music table (title, artist, year, album, image_url) | ✅ [q2_create_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q2_create_music.py) — PK=`title`, SK=`album` |
-| Q3 – Load 2026a2_songs.json losslessly | ✅ [q3_load_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q3_load_music.py) — dedup check via `get_item` before write |
-| Q4 – Download & upload artist images to S3 | ✅ [q4_S3_images.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q4_S3_images.py) — bucket `rmit-music-images-unique-91725` |
-| Frontend — static app in its own directory | ✅ [frontend/](frontend/) — login/register/main/search/subscriptions UI |
-| GSI required | ✅ `ArtistYearIndex` (artist PK, year SK) in [q2_create_music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/q2_create_music.py) |
-| LSI required | ⚠️ `TitleYearIndex` is **commented out** in q2_create_music.py — spec mandates at least one LSI |
-| Both Query and Scan used | ✅ [music.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/app/routers/music.py) — Query on base table, Query on GSI, Scan fallback |
-| RESTful API (GET, POST, DELETE) | ✅ GET `/songs/search`, `/subscriptions/{email}`, `/health`, `/logout`; POST `/login`, `/register`, `/songs/search`, `/subscriptions`; DELETE `/subscriptions`, `/logout` |
-| S3 presigned URLs for images | ✅ [db.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/app/db.py) `create_presigned_image_url()` |
-| Subscriptions table | ✅ [create_subscriptions_table.py](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/create_subscriptions_table.py) — PK=`user_email`, SK=`music_id` |
-| LabRole / LabInstanceProfile used | ✅ All deploy scripts reference `LabRole`/`LabInstanceProfile` |
-| Port 80/443 | ✅ Dockerfile EXPOSE 80, user_data.sh `-p 80:80`, task-definition.json `containerPort: 80` |
-| Elastic Beanstalk NOT used | ✅ Not used anywhere |
-| 3 independent backends | ✅ EC2 + API GW proxy, ECS Fargate + API GW proxy, API GW + Lambda (SAM) |
-
-> [!WARNING]
-> The LSI (`TitleYearIndex`) is currently commented out in `q2_create_music.py`. The spec explicitly requires **at least one GSI and one LSI**. You should uncomment it before creating the music table, or recreate the table with it enabled. LSIs can only be defined at table creation time.
-
-> [!NOTE]
-> The frontend is a static site under [frontend/](frontend/). It talks to the backend over HTTP(S), so if you host it on a different origin, keep the backend CORS settings enabled and point the frontend `apiBaseUrl` at the backend URL you deployed.
+5. [Backend 3 — API Gateway + Lambda (Serverless)](#backend-3--api-gateway--lambda-serverless)
+6. [API Probing Cheat-Sheet](#api-probing-cheat-sheet)
+7. [Cost-Control Reminders](#cost-control-reminders)
 
 ---
 
 ## Shared Prerequisites
 
 These steps must be completed **once** before any of the 3 backends can function. Run them from **CloudShell** or an **EC2 Instance Connect** terminal inside the Learner Lab.
+
+### P0. Deterministic Python & tooling (CloudShell / EC2)
+
+These steps make CloudShell and temporary EC2 builders deterministic: confirm Python, attempt an `apt` install of Python 3.12, fall back to `mise` for pre-built Python versions, and use `pyenv` only if you explicitly need a source build. Persist init in `~/.bashrc`, install `uvicorn` for local app runs, create a virtualenv and run a smoke test. Each step includes a short deterministic check and remediation.
+
+1) Verify current Python
+
+```bash
+python3 --version || python --version
+python -c 'import sys; print(sys.version)'
+which python || which python3
+```
+
+Expected: `Python 3.12.x` (or >= 3.12). If not present, continue below.
+
+2) Try the system package manager first (`apt` in CloudShell)
+
+```bash
+# CloudShell uses apt; install the versioned Python packages if available
+sudo apt-get update
+sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
+
+# If installed, create venv and install deps
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt uvicorn
+```
+
+Deterministic check: `python --version` returns `3.12.x` and `which python` ends in `/.venv/bin/python` after activation.
+If `apt` cannot provide Python 3.12, fall back to the `mise` flow below.
+
+3) `mise` flow (pre-built Python version; preferred fallback)
+
+Follow the official `mise` install instructions if `mise` is not present. Then load it in the shell and install the pre-built Python version:
+
+```bash
+# Shell init for bash
+eval "$(mise activate bash)"
+
+# Install Python 3.12 via mise
+mise install python@3.12.0
+mise use --global python@3.12.0
+
+# Verify
+mise ls
+mise current
+which python
+python --version
+```
+
+Deterministic check: `mise current` shows `python@3.12.0` and `python --version` prints `3.12.x`.
+
+4) `pyenv` flow (source-build fallback)
+
+If `mise` is not available, `pyenv` can build Python from source. This is slower and requires build dependencies. On CloudShell, use `apt`; on Amazon Linux EC2, swap these lines for the local distro package manager equivalents:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git build-essential zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libssl-dev tk-dev libffi-dev
+
+curl https://pyenv.run | bash
+
+# Add pyenv to the shell (see .bashrc snippet below)
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+source ~/.bashrc
+
+pyenv install 3.12.0
+pyenv global 3.12.0
+
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt uvicorn
+```
+
+Deterministic check: `pyenv versions` lists `3.12.0` as active and `python --version` prints `3.12.x`.
+
+5) Persist environment (`~/.bashrc`) — idempotent snippet
+
+Append (idempotently) the following to `~/.bashrc` so new shells pick up `mise`/`pyenv` automatically:
+
+```bash
+# >>> music-app environment helpers >>>
+# mise init (if present)
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate bash)"
+fi
+
+# pyenv init (if installed)
+if command -v pyenv >/dev/null 2>&1; then
+  export PYENV_ROOT="$HOME/.pyenv"
+  export PATH="$PYENV_ROOT/bin:$PATH"
+  eval "$(pyenv init -)"
+  eval "$(pyenv virtualenv-init -)"
+fi
+# >>> end music-app env >>>
+```
+
+Reload to apply:
+
+```bash
+source ~/.bashrc
+exec $SHELL
+```
+
+Deterministic check: `grep -n "music-app environment helpers" ~/.bashrc` finds the snippet and `command -v pyenv || command -v mise` succeeds in the reloaded shell.
+
+6) Create & activate a deterministic virtualenv (project root)
+
+```bash
+# From repo root
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt uvicorn
+```
+
+Deterministic check: `which python` ends with `/.venv/bin/python` and `pip show uvicorn` prints a version.
+
+7) Run the app with `uvicorn` as a deterministic smoke test
+
+```bash
+# Bind to 0.0.0.0 for EC2/CloudShell reachability
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
+curl -sS http://127.0.0.1:8000/health
+```
+
+Expect: `{"status":"ok"}`. If the curl fails, check the `uvicorn` logs and Python import errors.
+
+8) Quick checks & troubleshooting
+
+- Confirm Python path and version:
+
+```bash
+which python
+python --version
+```
+
+- `mise` quick list:
+
+```bash
+mise ls
+mise current
+```
+
+- `pyenv` quick list:
+
+```bash
+pyenv versions
+pyenv which python
+```
+
+- If `sudo dnf` fails in CloudShell (no privileges), use the builder EC2 approach (see Option B / builder workflow) and run installs there, or use the `mise`/`pyenv` user-space flows.
+
+9) EC2 `user_data` recommendation (optional)
+
+To have EC2 instances come up ready with Python 3.12 + `uvicorn`, add minimal, idempotent install and venv steps to `deploy/ec2/user_data.sh` so the VM can run the app locally for debugging. Example:
+
+```bash
+# (pseudo) in user_data.sh
+if ! command -v python3.12 >/dev/null 2>&1; then
+  sudo dnf install -y python3.12 python3.12-venv || sudo yum install -y python3.12 python3.12-venv || true
+fi
+cd /home/ec2-user/app || cd /opt/app || exit 0
+python3.12 -m venv .venv || python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r /path/to/requirements.txt uvicorn
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+```
+
+10) Checklist summary (for manual intervention points)
+
+- `python --version` shows `3.12.x` or `mise`/`pyenv` pinned to 3.12
+- `~/.bashrc` contains `mise`/`pyenv` init snippet and has been sourced
+- Virtualenv exists (`.venv`) and `pip install -r requirements.txt` succeeded
+- `uvicorn app.main:app` returns healthy `{"status":"ok"}`
+
+If any check fails: capture the failing command output, revert the last change if needed, and retry the preferred install path (system → mise → pyenv).
 
 ### P1. Start the Learner Lab session
 
@@ -214,602 +367,257 @@ aws ec2 delete-security-group --group-id <YOUR_SG_ID> --region us-east-1 || true
 
 ---
 
-## Frontend — Static Web App
+## Frontend — EC2 + nginx
 
-The frontend is a plain HTML/CSS/JS app in [frontend/](frontend/). It is intentionally separate from the backend so it can be hosted with the simplest and cheapest static hosting option you prefer.
+Deploy the frontend on a small EC2 instance running nginx. This allows you to easily point at different backends using query parameters without re-uploading.
 
-### Architecture & Deployment Options
+### Step F1 — Launch EC2 instance
 
-```mermaid
-graph LR
-    User -->|HTTPS| Frontend["Frontend<br/>(Static HTML/CSS/JS)"]
-    Frontend -->|HTTP(S)| API["Backend API<br/>(EC2/ECS/Lambda)"]
-    Frontend -->|Config:<br/>apiBaseUrl| ConfigJS["config.js<br/>or Query Param<br/>or localStorage"]
-    ConfigJS -->|Points to| API
-```
+1. **EC2 → Launch Instances**:
 
-| Hosting Option | Cost | Setup | Recommended For |
-|---|---|---|---|
-| **Local Python server** | Free | `python -m http.server 5173` | Local development & testing |
-| **AWS S3 static website** | $0–1/mo | 5 min; S3 + IAM policy | Testing, demos, low-traffic apps |
-| **S3 + CloudFront CDN** | $0–5/mo | 10 min; adds CloudFront distro | Production, global delivery |
-| **GitHub Pages** | Free | Push to `gh-pages` branch | Public projects, no AWS needed |
-| **Vercel / Netlify** | Free–$20/mo | Connect Git repo | Continuous deployment, modern DX |
-| **Simple HTTP server on EC2** | $0–10/mo | 2 min; e.g., `nginx` on existing EC2 | Bundled with backend on same instance |
-
-### Option 1: Local Development
-
-From the project root:
-
-```powershell
-cd frontend
-python -m http.server 5173
-```
-
-Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The frontend will default to `http://127.0.0.1:8000` for the backend API. To override:
-
-```text
-http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8000
-```
-
-or edit [frontend/config.js](frontend/config.js) directly.
-
-### Option 2: AWS S3 Static Website
-
-#### Step F2.1 — Create & configure S3 bucket
-
-```bash
-# 1. Create bucket (bucket names must be globally unique)
-BUCKET_NAME="music-subscription-frontend-$(date +%s)"
-aws s3 mb s3://$BUCKET_NAME --region us-east-1
-
-# 2. Enable static website hosting
-aws s3 website s3://$BUCKET_NAME \
-  --index-document index.html \
-  --error-document index.html
-
-# 3. Create a bucket policy to allow public read access
-aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy '{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": "*",
-    "Action": "s3:GetObject",
-    "Resource": "arn:aws:s3:::'"$BUCKET_NAME"'/*"
-  }]
-}'
-
-# 4. Disable block-all-public-access
-aws s3api put-public-access-block \
-  --bucket $BUCKET_NAME \
-  --public-access-block-configuration \
-  "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
-
-# 5. Print the website URL
-aws s3api get-bucket-website --bucket $BUCKET_NAME --region us-east-1 --query 'WebsiteConfiguration.IndexDocument' --output text
-# → Returns: "index.html" (website URL will be: http://$BUCKET_NAME.s3-website-us-east-1.amazonaws.com)
-```
-
-#### Step F2.2 — Update frontend config & upload
-
-Edit [frontend/config.js](frontend/config.js) to set the correct backend URL:
-
-```javascript
-window.APP_CONFIG = {
-  appName: "Music Subscription",
-  apiBaseUrl: "http://<EC2_PUBLIC_DNS>",  // or your backend URL
-};
-```
-
-Then upload all frontend files:
-
-```bash
-aws s3 sync ./frontend s3://$BUCKET_NAME \
-  --exclude ".git/*" \
-  --exclude "README.md" \
-  --exclude "*.md" \
-  --region us-east-1
-```
-
-#### Step F2.3 — Access the frontend
-
-```text
-http://<BUCKET_NAME>.s3-website-us-east-1.amazonaws.com
-```
-
-> [!NOTE]
-> S3 static websites must be accessed via HTTP, not HTTPS (unless you add CloudFront).
-
-### Option 2.5: Automated S3 Deployment (CloudShell)
-
-For a faster deployment, use the provided bash script:
-
-```bash
-# From project root in CloudShell or local shell:
-bash ./deploy/frontend/deploy-frontend-s3.sh \
-  --api-base-url "http://<your-backend-url>"
-```
-
-**Supported backend URLs:**
-- EC2 direct: `http://<EC2_PUBLIC_DNS>`
-- ECS ALB: `http://<ALB_DNS_NAME>`
-- Lambda/API GW: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
-
-The script handles:
-- S3 bucket creation with unique name
-- Static website hosting configuration
-- Public access policy
-- Frontend file upload
-- CORS headers
-
-Output: S3 website URL (e.g., `http://music-subscription-frontend-XXXXX.s3-website-us-east-1.amazonaws.com`)
-
-> [!TIP]
-> Use this script for all deployments. The manual steps above are for reference/troubleshooting.
-
-### Option 3: CloudFront CDN in front of S3
-
-For HTTPS and global caching:
-
-```bash
-# Create a CloudFront distribution
-aws cloudfront create-distribution \
-  --origin-domain-name $BUCKET_NAME.s3-website-us-east-1.amazonaws.com \
-  --default-root-object index.html \
-  --enabled \
-  --region us-east-1 | jq '.Distribution.DomainName'
-# → Returns CloudFront domain name (e.g., d12345.cloudfront.net)
-```
-
-Then access via:
-
-```text
-https://d12345.cloudfront.net
-```
-
-### Option 4: GitHub Pages (if repo is public)
-
-1. Push the `frontend/` folder to your GitHub repo.
-2. In **Settings → Pages**, select "Deploy from a branch" and choose `main` → `/docs` (or create a `.github/workflows/deploy.yml`).
-3. Access at `https://<USERNAME>.github.io/<REPO_NAME>/frontend/`.
-
-### Configuring the API base URL for different backends
-
-The frontend resolves the API base URL in this order:
-1. **Query parameter:** `?apiBase=<URL>`
-2. **localStorage:** Previously saved value from query parameter
-3. **config.js default:** `http://127.0.0.1:8000`
-
-**For each backend deployment, update config.js and redeploy:**
-
-| Backend Target | API Base URL |
+| Setting | Value |
 |---|---|
-| **EC2 direct** | `http://<EC2_PUBLIC_DNS>` |
-| **EC2 via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
-| **ECS Fargate via ALB** | `http://<ALB_DNS_NAME>` |
-| **ECS Fargate via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
-| **Lambda via API Gateway** | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
+| Name | `music-subscription-frontend-ec2` |
+| AMI | Amazon Linux 2023 |
+| Instance type | `t2.micro` |
+| Key pair | `vockey` |
+| Security Group | Create new: Allow **HTTP (port 80)** from `0.0.0.0/0` and **SSH (port 22)** from your IP |
+| IAM instance profile | Not needed |
 
-**Example: deploying for ECS backend**
+2. Click **Launch Instance**, wait for **Status Checks = 2/2 passed**.
+3. Copy the **Public IPv4 DNS** (e.g., `ec2-XX-XX-XX-XX.compute-1.amazonaws.com`).
+
+### Step F2 — Install nginx and deploy frontend
+
+SSH or use **EC2 Instance Connect** to run:
 
 ```bash
-# 1. Get ALB DNS name
-ALB_DNS=$(aws elbv2 describe-load-balancers \
-  --region us-east-1 | \
-  jq -r '.LoadBalancers[0].DNSName')
+# Update and install nginx
+sudo yum update -y
+sudo yum install -y nginx
 
-# 2. Update config.js
-sed -i "s|apiBaseUrl: \".*\"|apiBaseUrl: \"http://$ALB_DNS\"|" frontend/config.js
+# Start nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
 
-# 3. Re-upload to S3
-aws s3 sync ./frontend s3://$BUCKET_NAME \
-  --exclude ".git/*" --exclude "*.md" \
-  --region us-east-1
+# Copy frontend files to nginx directory
+# (Option A: upload via Instance Connect file editor, then copy)
+# (Option B: from local machine, use scp)
+sudo cp ~/frontend/* /usr/share/nginx/html/
+sudo chown -R nginx:nginx /usr/share/nginx/html/
 ```
 
-### CORS note
+### Step F3 — Access and configure backend URL
 
-The backend FastAPI app includes permissive CORS middleware (see [app/main.py](app/main.py)) so the static frontend can call it from a separate origin. If you want to narrow allowed origins later, set the `FRONTEND_ORIGINS` environment variable to a comma-separated list:
+1. Open browser: `http://<EC2_PUBLIC_DNS>/`
+2. To point at a backend, append the query parameter `?apiBase=<BACKEND_URL>`:
+
+| Backend | Frontend URL |
+|---|---|
+| **EC2 backend** | `http://<EC2_FRONTEND_DNS>/?apiBase=http://<EC2_BACKEND_DNS>` |
+| **ECS backend (ALB)** | `http://<EC2_FRONTEND_DNS>/?apiBase=http://<ALB_DNS>` |
+| **Lambda backend (API GW)** | `http://<EC2_FRONTEND_DNS>/?apiBase=https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
+
+### Step F4 — Teardown EC2 frontend
 
 ```bash
-# Example: only allow S3-hosted frontend
-export FRONTEND_ORIGINS="http://music-subscription-frontend-XXXXX.s3-website-us-east-1.amazonaws.com"
-```
-
-### Teardown Frontend
-
-**S3 cleanup:**
-
-```bash
-# Remove all objects from bucket
-aws s3 rm s3://$BUCKET_NAME --recursive
-
-# Delete bucket
-aws s3 rb s3://$BUCKET_NAME
-
-# If using CloudFront, disable and delete the distribution
-aws cloudfront list-distributions --region us-east-1 | \
-  jq '.DistributionList.Items[] | select(.Origins.Items[0].DomainName | contains($BUCKET_NAME)) | .Id'
-# Then: aws cloudfront delete-distribution --id <DIST_ID> --region us-east-1
+aws ec2 terminate-instances --instance-ids <INSTANCE_ID> --region us-east-1
 ```
 
 ---
 
-## Backend 1 — EC2 (Container on a VM)
+## Backend 1 — EC2 (Docker Container)
 
-### Architecture
+### Step 1.1 — Environment variables & prerequisites
 
-```mermaid
-graph LR
-    Browser -->|HTTPS| APIGW["API Gateway<br/>(REST proxy)"]
-    APIGW -->|HTTP :80| EC2["EC2 Instance<br/>(Docker container)"]
-    EC2 --> DDB["DynamoDB"]
-    EC2 --> S3["S3 Bucket"]
+Before launching, set these environment variables in your CloudShell or terminal:
+
+```bash
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export S3_BUCKET="rmit-music-images-unique-91725"
+export REGION="us-east-1"
+export BACKEND_PORT="80"
 ```
 
-### Step 1.1 — Launch the EC2 instance
+### Step 1.2 — Launch the EC2 instance
 
-1. Open **EC2 → Launch Instances** in the AWS Console.
-2. Configure:
+From **EC2 → Launch Instances**:
 
 | Setting | Value |
 |---|---|
-| Name | `music-subscription-ec2` |
-| AMI | Amazon Linux 2023 AMI (or Amazon Linux 2) |
+| Name | `music-subscription-ec2-backend` |
+| AMI | Amazon Linux 2023 |
 | Instance type | `t2.small` |
 | Key pair | `vockey` |
-| Network / Security Group | Create new SG: Allow **HTTP (port 80)** from `0.0.0.0/0` and **SSH (port 22)** from your IP |
+| Security Group | Create new: Allow **HTTP (port 80)** from `0.0.0.0/0` |
 | IAM instance profile | `LabInstanceProfile` |
-| User data | Paste the contents of [user_data.sh](file:///e:/rmit/y2s2/cloud-computing/full-stack-music-subscription.worktrees/dockerizing-new/deploy/ec2/user_data.sh), **after editing** the `ACCOUNT_ID` and `S3_BUCKET_NAME` placeholders |
+| User data | See Step 1.3 |
 
-3. Click **Launch Instance**.
+### Step 1.3 — User data script
 
-> [!IMPORTANT]
-> Before pasting `user_data.sh`, replace:
-> - `CHANGE_ME_ACCOUNT_ID` → your 12-digit Account ID
-> - `CHANGE_ME_BUCKET` → `rmit-music-images-unique-91725`
+Use [deploy/ec2/user_data.sh](deploy/ec2/user_data.sh). Before pasting, replace:
+- `CHANGE_ME_ACCOUNT_ID` → `$ACCOUNT_ID`
+- `CHANGE_ME_BUCKET` → `$S3_BUCKET`
 
-### Step 1.2 — Wait for the instance & verify
+Then paste into the **User data** field.
 
-1. In **EC2 → Instances**, wait for Instance State = **Running** and Status Checks = **2/2 passed**.
-2. Copy the **Public IPv4 DNS** (e.g. `ec2-XX-XX-XX-XX.compute-1.amazonaws.com`).
-3. In your browser, navigate to:
+### Step 1.4 — Verify deployment
 
-```
-http://<EC2_PUBLIC_DNS>/health
-```
+1. Wait for **Status Checks = 2/2 passed**.
+2. Get the **Public IPv4 DNS**: `EC2_PUBLIC_DNS=<value>`
+3. Test:
 
-Expected response:
-```json
-{"status": "ok"}
+```bash
+curl -s http://$EC2_PUBLIC_DNS/health | jq .
+# Expected: {"status":"ok"}
 ```
 
-> [!TIP]
-> If the health check fails, SSH in and check Docker:
-> ```bash
-> ssh -i vockey.pem ec2-user@<PUBLIC_IP>
-> sudo docker ps
-> sudo docker logs music-subscription-api
-> ```
+### Step 1.5 — Teardown
 
-### Step 1.3 — Deploy API Gateway proxy for EC2
-
-From your **local shell or CloudShell** (with AWS env vars set):
-
-```powershell
-./deploy/apigw/deploy-apigw-ec2.sh `
-  --backend-base-url "http://<EC2_PUBLIC_DNS>"
+```bash
+aws ec2 terminate-instances --instance-ids <INSTANCE_ID> --region $REGION
 ```
-
-This creates a CloudFormation stack `music-subscription-apigw-ec2` and prints the **API Gateway URL**. Note it down.
-
-### Step 1.4 — Probe EC2 backend APIs
-
-See the [API Probing Cheat-Sheet](#api-probing-cheat-sheet) below. Replace `<BASE_URL>` with either:
-- Direct: `http://<EC2_PUBLIC_DNS>`
-- Via API GW: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
-
-### Step 1.5 — Teardown EC2
-
-```powershell
-# 1. Delete the API Gateway CloudFormation stack
-aws cloudformation delete-stack --stack-name music-subscription-apigw-ec2 --region us-east-1
-
-# 2. Terminate the EC2 instance (from console or CLI)
-aws ec2 terminate-instances --instance-ids <INSTANCE_ID> --region us-east-1
-```
-
-Alternatively, just **stop** the instance to save budget if you need it later (IPs will change on restart unless you use an Elastic IP).
 
 ---
 
 ## Backend 2 — ECS Fargate (Managed Containers)
 
-### Architecture
-
-```mermaid
-graph LR
-    Browser -->|HTTPS| APIGW["API Gateway<br/>(REST proxy)"]
-    APIGW -->|HTTP :80| ALB["Application<br/>Load Balancer"]
-    ALB --> ECS["ECS Fargate<br/>Task"]
-    ECS --> DDB["DynamoDB"]
-    ECS --> S3["S3 Bucket"]
-```
-
-### Step 2.1 — Create the ECS cluster (Console)
-
-1. Open **ECS → Clusters → Create Cluster**.
-2. Configure:
-
-| Setting | Value |
-|---|---|
-| Cluster name | `music-subscription-cluster` |
-| Infrastructure | **AWS Fargate (serverless)** only |
-
-3. Click **Create**.
-
-### Step 2.2 — Create a CloudWatch Log Group
-
-The task definition references `/ecs/music-subscription-api` for logging:
+### Step 2.1 — Environment variables & prerequisites
 
 ```bash
-aws logs create-log-group \
-  --log-group-name /ecs/music-subscription-api \
-  --region us-east-1
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export CLUSTER_NAME="music-subscription-cluster"
+export SERVICE_NAME="music-subscription-service"
+export S3_BUCKET="rmit-music-images-unique-91725"
+export REGION="us-east-1"
+export TASK_DEFINITION="music-subscription-api"
 ```
 
-### Step 2.3 — Create networking resources (VPC, Subnets, ALB, Security Groups)
+### Step 2.2 — Create ECS cluster & networking
 
-ECS Fargate tasks run in an `awsvpc` network mode and need:
-- A **VPC** with at least **2 public subnets** in different AZs (the default VPC works).
-- A **Security Group** for the ECS tasks allowing inbound **port 80**.
-- An **Application Load Balancer (ALB)** in those subnets, with a **Target Group** (type = `ip`, port 80, health check path `/health`).
+1. **Create ECS cluster** (via Console or AWS SDK):
+   - Name: `music-subscription-cluster`
+   - Infrastructure: Fargate
 
-**Using the default VPC (quickest path):**
+2. **Create CloudWatch Log Group**:
+```bash
+aws logs create-log-group --log-group-name /ecs/$TASK_DEFINITION --region $REGION
+```
 
-1. **Note your default VPC ID and its public subnet IDs:**
+3. **Get VPC and subnets**:
+```bash
+VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text)
+SUBNET_IDS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC_ID --query "Subnets[0:2].SubnetId" --output text)
+```
+
+4. **Create Security Group**:
+```bash
+SG_ID=$(aws ec2 create-security-group --group-name ecs-music-sg --description "ECS backend" --vpc-id $VPC_ID --query GroupId --output text --region $REGION)
+aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0 --region $REGION
+```
+
+5. **Create ALB and Target Group**:
+```bash
+ALB_ARN=$(aws elbv2 create-load-balancer --name music-sub-alb --subnets $SUBNET_IDS --security-groups $SG_ID --scheme internet-facing --type application --query "LoadBalancers[0].LoadBalancerArn" --output text --region $REGION)
+TG_ARN=$(aws elbv2 create-target-group --name music-sub-tg --protocol HTTP --port 80 --vpc-id $VPC_ID --target-type ip --health-check-path /health --query "TargetGroups[0].TargetGroupArn" --output text --region $REGION)
+aws elbv2 create-listener --load-balancer-arn $ALB_ARN --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$TG_ARN --region $REGION
+```
+
+6. **Get ALB DNS**:
+```bash
+ALB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN --query "LoadBalancers[0].DNSName" --output text --region $REGION)
+echo $ALB_DNS
+```
+
+### Step 2.3 — Deploy ECS service
+
+Use [deploy/ecs/deploy-ecs.sh](deploy/ecs/deploy-ecs.sh) with env vars:
 
 ```bash
-# Default VPC
-aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text
-# → vpc-xxxxxxxx
-
-# Subnets (pick 2 in different AZs)
-aws ec2 describe-subnets --filters Name=vpc-id,Values=<VPC_ID> --query "Subnets[*].[SubnetId,AvailabilityZone]" --output table
+bash deploy/ecs/deploy-ecs.sh \
+  --account-id $ACCOUNT_ID \
+  --cluster $CLUSTER_NAME \
+  --service $SERVICE_NAME \
+  --lab-role-arn "arn:aws:iam::$ACCOUNT_ID:role/LabRole" \
+  --bucket $S3_BUCKET \
+  --region $REGION
 ```
 
-2. **Create a Security Group for ECS tasks:**
+### Step 2.4 — Verify and test
 
 ```bash
-SG_ID=$(aws ec2 create-security-group \
-  --group-name ecs-music-sg \
-  --description "ECS music subscription" \
-  --vpc-id <VPC_ID> \
-  --query GroupId --output text \
-  --region us-east-1)
-
-aws ec2 authorize-security-group-ingress \
-  --group-id $SG_ID \
-  --protocol tcp --port 80 \
-  --cidr 0.0.0.0/0 \
-  --region us-east-1
+curl -s http://$ALB_DNS/health | jq .
+# Expected: {"status":"ok"}
 ```
 
-3. **Create ALB:**
+### Step 2.5 — Teardown ECS
 
 ```bash
-ALB_ARN=$(aws elbv2 create-load-balancer \
-  --name music-subscription-alb \
-  --subnets <SUBNET_1> <SUBNET_2> \
-  --security-groups $SG_ID \
-  --scheme internet-facing \
-  --type application \
-  --query "LoadBalancers[0].LoadBalancerArn" --output text \
-  --region us-east-1)
+aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --desired-count 0 --region $REGION
+aws ecs delete-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force --region $REGION
+aws elbv2 delete-load-balancer --load-balancer-arn $ALB_ARN --region $REGION
+aws elbv2 delete-target-group --target-group-arn $TG_ARN --region $REGION
+aws ec2 delete-security-group --group-id $SG_ID --region $REGION
+aws ecs delete-cluster --cluster $CLUSTER_NAME --region $REGION
+aws logs delete-log-group --log-group-name /ecs/$TASK_DEFINITION --region $REGION
 ```
-
-4. **Create Target Group:**
-
-```bash
-TG_ARN=$(aws elbv2 create-target-group \
-  --name music-sub-tg \
-  --protocol HTTP --port 80 \
-  --vpc-id <VPC_ID> \
-  --target-type ip \
-  --health-check-path /health \
-  --query "TargetGroups[0].TargetGroupArn" --output text \
-  --region us-east-1)
-```
-
-5. **Create ALB Listener:**
-
-```bash
-aws elbv2 create-listener \
-  --load-balancer-arn $ALB_ARN \
-  --protocol HTTP --port 80 \
-  --default-actions Type=forward,TargetGroupArn=$TG_ARN \
-  --region us-east-1
-```
-
-6. **Get ALB DNS name:**
-
-```bash
-aws elbv2 describe-load-balancers \
-  --load-balancer-arns $ALB_ARN \
-  --query "LoadBalancers[0].DNSName" --output text \
-  --region us-east-1
-# → music-subscription-alb-XXXXXXXXX.us-east-1.elb.amazonaws.com
-```
-
-### Step 2.4 — Deploy the ECS service using the deploy script
-
-From your **local shell or CloudShell builder workflow** (with AWS env vars + Docker Desktop running):
-
-```powershell
-./deploy/ecs/deploy-ecs.sh `
-  --account-id <ACCOUNT_ID> `
-  --cluster music-subscription-cluster `
-  --service music-subscription-service `
-  --lab-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/LabRole" `
-  --bucket rmit-music-images-unique-91725 `
-  --region us-east-1
-```
-
-> [!NOTE]
-> This script builds & pushes the Docker image, registers a new task definition, and updates the ECS service. **If the ECS service doesn't exist yet**, you must create it first (see below).
-
-**Create the ECS service (first time only):**
-
-```bash
-aws ecs create-service \
-  --cluster music-subscription-cluster \
-  --service-name music-subscription-service \
-  --task-definition music-subscription-api \
-  --desired-count 1 \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[<SUBNET_1>,<SUBNET_2>],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
-  --load-balancers "targetGroupArn=$TG_ARN,containerName=music-subscription-api,containerPort=80" \
-  --region us-east-1
-```
-
-### Step 2.5 — Verify ECS deployment
-
-1. In **ECS → Clusters → music-subscription-cluster → Services**, check the service is **ACTIVE** with 1 running task.
-2. Browse to:
-
-```
-http://<ALB_DNS_NAME>/health
-```
-
-Expected: `{"status": "ok"}`
-
-### Step 2.6 — Deploy API Gateway proxy for ECS
-
-```powershell
-./deploy/apigw/deploy-apigw-ecs.sh `
-  --backend-base-url "http://<ALB_DNS_NAME>"
-```
-
-Note the API Gateway URL printed at the end.
-
-### Step 2.7 — Probe ECS backend APIs
-
-See the [API Probing Cheat-Sheet](#api-probing-cheat-sheet). Replace `<BASE_URL>` with either:
-- Direct via ALB: `http://<ALB_DNS_NAME>`
-- Via API GW: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
-
-### Step 2.8 — Teardown ECS
-
-```bash
-# 1. Delete API Gateway stack
-aws cloudformation delete-stack --stack-name music-subscription-apigw-ecs --region us-east-1
-
-# 2. Scale service to 0, then delete it
-aws ecs update-service --cluster music-subscription-cluster --service music-subscription-service --desired-count 0 --region us-east-1
-aws ecs delete-service --cluster music-subscription-cluster --service music-subscription-service --force --region us-east-1
-
-# 3. Delete ALB listener, target group, and load balancer
-aws elbv2 delete-load-balancer --load-balancer-arn $ALB_ARN --region us-east-1
-# (wait ~30s for ALB to drain)
-aws elbv2 delete-target-group --target-group-arn $TG_ARN --region us-east-1
-
-# 4. Delete security group
-aws ec2 delete-security-group --group-id $SG_ID --region us-east-1
-
-# 5. Delete cluster (only if empty)
-aws ecs delete-cluster --cluster music-subscription-cluster --region us-east-1
-
-# 6. Delete log group
-aws logs delete-log-group --log-group-name /ecs/music-subscription-api --region us-east-1
-```
-
-> [!CAUTION]
-> ALB and NAT Gateway are the biggest cost items for ECS. **Always tear them down when not in use.**
 
 ---
 
 ## Backend 3 — API Gateway + Lambda (Serverless)
 
-### Architecture
+### Step 3.1 — Environment variables & prerequisites
 
-```mermaid
-graph LR
-    Browser -->|HTTPS| APIGW["API Gateway<br/>(REST API)"]
-    APIGW --> Lambda["Lambda Function<br/>(Mangum + FastAPI)"]
-    Lambda --> DDB["DynamoDB"]
-    Lambda --> S3["S3 Bucket"]
+```bash
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export S3_BUCKET="rmit-music-images-unique-91725"
+export REGION="us-east-1"
+export STACK_NAME="music-subscription-lambda"
+export LAB_ROLE_ARN="arn:aws:iam::$ACCOUNT_ID:role/LabRole"
 ```
 
-### Step 3.1 — Install AWS SAM CLI
-
-If not already installed, install the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) on your local machine.
-
-```powershell
-# Verify
-sam --version
+Install AWS SAM CLI if not already done:
+```bash
+sam --version  # Verify installation
 ```
 
-### Step 3.2 — Build the SAM application
+### Step 3.2 — Build and deploy Lambda
 
-From the project root directory:
+From project root:
 
-```powershell
+```bash
+# Build
 sam build -t deploy/lambda/template.yaml
+
+# Deploy
+sam deploy \
+  --stack-name $STACK_NAME \
+  --region $REGION \
+  --capabilities CAPABILITY_IAM \
+  --resolve-s3 \
+  --parameter-overrides \
+    LabRoleArn="$LAB_ROLE_ARN" \
+    S3BucketName="$S3_BUCKET"
 ```
 
-> [!NOTE]
-> SAM will create a `.aws-sam/build/` directory with the packaged Lambda code. It bundles everything under `CodeUri: ../../` (the project root), including `lambda_handler.py`, `app/`, and dependencies from `requirements.txt`.
-
-### Step 3.3 — Deploy with SAM
-
-```powershell
-sam deploy `
-  --stack-name music-subscription-lambda `
-  --region us-east-1 `
-  --capabilities CAPABILITY_IAM `
-  --resolve-s3 `
-  --parameter-overrides `
-    LabRoleArn="arn:aws:iam::<ACCOUNT_ID>:role/LabRole" `
-    S3BucketName="rmit-music-images-unique-91725"
+SAM prints the API Gateway URL in the output. Save it:
+```bash
+API_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].Outputs[0].OutputValue" --output text --region $REGION)
+echo $API_URL
 ```
 
-> [!IMPORTANT]
-> - `--resolve-s3` lets SAM auto-create/use a managed S3 bucket for deployment artifacts.
-> - If you get IAM permission errors, try `--no-fail-on-empty-changeset` and verify your Learner Lab session is still active (green indicator).
+### Step 3.3 — Verify and test
 
-After deployment, SAM prints the outputs including the API Gateway URL:
-
-```
-Outputs
-------------------------------------------------------------------------
-Key                 ApiUrl
-Description         API Gateway URL
-Value               https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/
-------------------------------------------------------------------------
+```bash
+curl -s "$API_URL/health" | jq .
+# Expected: {"status":"ok"}
 ```
 
-### Step 3.4 — Verify Lambda deployment
+### Step 3.4 — Teardown Lambda
 
-Browse to:
-
+```bash
+sam delete --stack-name $STACK_NAME --region $REGION --no-prompts
 ```
-https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/health
-```
-
-Expected: `{"status": "ok"}`
-
-### Step 3.5 — Probe Lambda backend APIs
-
-See the [API Probing Cheat-Sheet](#api-probing-cheat-sheet). Replace `<BASE_URL>` with:
-- `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
-
-### Step 3.6 — Teardown Lambda
-
-```powershell
-sam delete --stack-name music-subscription-lambda --region us-east-1 --no-prompts
-```
-
-This deletes the CloudFormation stack, Lambda function, API Gateway, and the deployment S3 bucket.
 
 ---
 
