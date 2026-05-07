@@ -21,187 +21,15 @@
 
 These steps must be completed **once** before any of the 3 backends can function. Run them from **CloudShell** or an **EC2 Instance Connect** terminal inside the Learner Lab.
 
-### P0. Deterministic Python & tooling (CloudShell / EC2)
+### P0. Deterministic Python & tooling (CloudShell)
 
-These steps make CloudShell and temporary EC2 builders deterministic: confirm Python, attempt an `apt` install of Python 3.12, fall back to `mise` for pre-built Python versions, and use `pyenv` only if you explicitly need a source build. Persist init in `~/.bashrc`, install `uvicorn` for local app runs, create a virtualenv and run a smoke test. Each step includes a short deterministic check and remediation.
+See [exec log.md](exec%20log.md) **Section 1** for the tested CloudShell setup:
+- Install `mise` for Python version management
+- Install `uv` for tooling
+- Set Python 3.12 as global default
+- Clone repo and run `uv sync --no-dev`
 
-1) Verify current Python
-
-```bash
-python3 --version || python --version
-python -c 'import sys; print(sys.version)'
-which python || which python3
-```
-
-Expected: `Python 3.12.x` (or >= 3.12). If not present, continue below.
-
-2) Try the system package manager first (`apt` in CloudShell)
-
-```bash
-# CloudShell uses apt; install the versioned Python packages if available
-sudo apt-get update
-sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-
-# If installed, create venv and install deps
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt uvicorn
-```
-
-Deterministic check: `python --version` returns `3.12.x` and `which python` ends in `/.venv/bin/python` after activation.
-If `apt` cannot provide Python 3.12, fall back to the `mise` flow below.
-
-3) `mise` flow (pre-built Python version; preferred fallback)
-
-Follow the official `mise` install instructions if `mise` is not present. Then load it in the shell and install the pre-built Python version:
-
-```bash
-# Shell init for bash
-eval "$(mise activate bash)"
-
-# Install Python 3.12 via mise
-mise install python@3.12.0
-mise use --global python@3.12.0
-
-# Verify
-mise ls
-mise current
-which python
-python --version
-```
-
-Deterministic check: `mise current` shows `python@3.12.0` and `python --version` prints `3.12.x`.
-
-4) `pyenv` flow (source-build fallback)
-
-If `mise` is not available, `pyenv` can build Python from source. This is slower and requires build dependencies. On CloudShell, use `apt`; on Amazon Linux EC2, swap these lines for the local distro package manager equivalents:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y git build-essential zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libssl-dev tk-dev libffi-dev
-
-curl https://pyenv.run | bash
-
-# Add pyenv to the shell (see .bashrc snippet below)
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
-source ~/.bashrc
-
-pyenv install 3.12.0
-pyenv global 3.12.0
-
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt uvicorn
-```
-
-Deterministic check: `pyenv versions` lists `3.12.0` as active and `python --version` prints `3.12.x`.
-
-5) Persist environment (`~/.bashrc`) — idempotent snippet
-
-Append (idempotently) the following to `~/.bashrc` so new shells pick up `mise`/`pyenv` automatically:
-
-```bash
-# >>> music-app environment helpers >>>
-# mise init (if present)
-if command -v mise >/dev/null 2>&1; then
-  eval "$(mise activate bash)"
-fi
-
-# pyenv init (if installed)
-if command -v pyenv >/dev/null 2>&1; then
-  export PYENV_ROOT="$HOME/.pyenv"
-  export PATH="$PYENV_ROOT/bin:$PATH"
-  eval "$(pyenv init -)"
-  eval "$(pyenv virtualenv-init -)"
-fi
-# >>> end music-app env >>>
-```
-
-Reload to apply:
-
-```bash
-source ~/.bashrc
-exec $SHELL
-```
-
-Deterministic check: `grep -n "music-app environment helpers" ~/.bashrc` finds the snippet and `command -v pyenv || command -v mise` succeeds in the reloaded shell.
-
-6) Create & activate a deterministic virtualenv (project root)
-
-```bash
-# From repo root
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt uvicorn
-```
-
-Deterministic check: `which python` ends with `/.venv/bin/python` and `pip show uvicorn` prints a version.
-
-7) Run the app with `uvicorn` as a deterministic smoke test
-
-```bash
-# Bind to 0.0.0.0 for EC2/CloudShell reachability
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
-curl -sS http://127.0.0.1:8000/health
-```
-
-Expect: `{"status":"ok"}`. If the curl fails, check the `uvicorn` logs and Python import errors.
-
-8) Quick checks & troubleshooting
-
-- Confirm Python path and version:
-
-```bash
-which python
-python --version
-```
-
-- `mise` quick list:
-
-```bash
-mise ls
-mise current
-```
-
-- `pyenv` quick list:
-
-```bash
-pyenv versions
-pyenv which python
-```
-
-- If `sudo dnf` fails in CloudShell (no privileges), use the builder EC2 approach (see Option B / builder workflow) and run installs there, or use the `mise`/`pyenv` user-space flows.
-
-9) EC2 `user_data` recommendation (optional)
-
-To have EC2 instances come up ready with Python 3.12 + `uvicorn`, add minimal, idempotent install and venv steps to `deploy/ec2/user_data.sh` so the VM can run the app locally for debugging. Example:
-
-```bash
-# (pseudo) in user_data.sh
-if ! command -v python3.12 >/dev/null 2>&1; then
-  sudo dnf install -y python3.12 python3.12-venv || sudo yum install -y python3.12 python3.12-venv || true
-fi
-cd /home/ec2-user/app || cd /opt/app || exit 0
-python3.12 -m venv .venv || python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r /path/to/requirements.txt uvicorn
-nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-```
-
-10) Checklist summary (for manual intervention points)
-
-- `python --version` shows `3.12.x` or `mise`/`pyenv` pinned to 3.12
-- `~/.bashrc` contains `mise`/`pyenv` init snippet and has been sourced
-- Virtualenv exists (`.venv`) and `pip install -r requirements.txt` succeeded
-- `uvicorn app.main:app` returns healthy `{"status":"ok"}`
-
-If any check fails: capture the failing command output, revert the last change if needed, and retry the preferred install path (system → mise → pyenv).
+Quick check: `python --version` returns `3.12.x` and `which python` points to a `mise`-managed path.
 
 ### P1. Start the Learner Lab session
 
@@ -263,107 +91,15 @@ aws ecr create-repository \
 
 ### P5. Build and push the Docker image to ECR
 
-You need a Docker-capable environment. **CloudShell does NOT have Docker**. Options:
-- **Option A** — Build locally on your Windows machine and push (requires AWS CLI configured with Learner Lab creds + Docker Desktop running).
-- **Option B** — Launch a temporary EC2 instance (Amazon Linux 2, `t2.small`, attach `LabInstanceProfile`), SSH/Instance Connect in, clone repo, install Docker, build & push.
+See [exec log.md](exec%20log.md) **Section 2** for the tested builder approach:
 
-### Option A (local machine with Docker Desktop)
+1. Launch an EC2 builder instance (Amazon Linux / Fedora / RHEL).
+2. Install Docker, Git, and AWS CLI.
+3. Clone repo, set env vars (`ACCOUNT_ID`, `REGION`, `REPO_NAME`, `IMAGE_TAG`).
+4. Run `docker build`, tag for ECR, and `docker push`.
+5. Terminate builder when done.
 
-Use this if Docker Desktop is already running on your Windows machine:
-
-```powershell
-# 1. Get Learner Lab temporary credentials and configure AWS CLI locally
-#    (copy AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
-#     from Learner Lab → "AWS Details" → "AWS CLI")
-$env:AWS_ACCESS_KEY_ID = "<paste>"
-$env:AWS_SECRET_ACCESS_KEY = "<paste>"
-$env:AWS_SESSION_TOKEN = "<paste>"
-$env:AWS_DEFAULT_REGION = "us-east-1"
-
-# 2. Get your Account ID
-$ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
-
-# 3. ECR login
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com"
-
-# 4. Build image (from project root)
-docker build -t music-subscription-api:latest .
-
-# 5. Tag for ECR
-docker tag music-subscription-api:latest "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api:latest"
-
-# 6. Push
-docker push "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/music-subscription-api:latest"
-```
-
-> [!IMPORTANT]
-> The image must be **linux/amd64** architecture. If you're on an ARM Mac, add `--platform linux/amd64` to the `docker build` command. On Windows/Intel, the default is correct.
-
-### Option B (Automated Builder via CloudShell)
-
-Use this if your team members are on different operating systems and cannot build locally. We use an automated script from AWS CloudShell to launch a temporary builder, connect, build, push, and cleanly tear it down.
-
-#### B1. Clone this repository into CloudShell
-
-Open AWS CloudShell. You will need your repository URL (HTTPS).
-
-```bash
-# 1. PASTE IN CLOUDSHELL
-git clone <YOUR_REPO_URL> music-repo
-cd music-repo
-```
-
-#### B2. Launch the temporary builder instance
-
-We have provided a script that launches a temporary Amazon Linux 2023 instance, correctly configures its Security Groups, binds `LabInstanceProfile`, and passes a startup script that prepares Docker and the AWS CLI.
-
-```bash
-# 2. PASTE IN CLOUDSHELL
-bash deploy/builder/launch_builder.sh
-```
-
-Wait for the script to finish. It will print instructions taking you to the next step, including your **Instance ID**.
-
-#### B3. Connect inside the Builder
-
-The setup script gives you a command to run. Paste it in CloudShell:
-
-```bash
-# 3. PASTE IN CLOUDSHELL (Replace with actual ID from previous step output)
-aws ssm start-session --target i-0abcd1234567890ef --region us-east-1
-```
-*(No SSH keys are needed—we use secure AWS Systems Manager!)*
-
-#### B4. Build and Push the image
-
-Our builder script pre-loads a helper onto the temporary instance. While connected to the session (you should see a `sh-5.2$` or similar prompt), run:
-
-```bash
-# 4. PASTE IN SSM SESSION ON THE BUILDER
-bash ~/build_and_push.sh
-```
-
-It will prompt you for your `REPO_URL`. Paste the HTTPS link to your git repository. It will clone the code, log into ECR, build the `music-subscription-api` Docker container, and securely push it.
-
-#### B5. Teardown the temp builder (crucial to save lab budget)
-
-When the push completes successfully:
-
-```bash
-# 5. PASTE IN SSM SESSION ON THE BUILDER (This exits the instance)
-exit
-```
-
-Now, back in your **CloudShell**, copy-paste the teardown commands that the launch script provided earlier:
-
-```bash
-# 6. PASTE IN CLOUDSHELL to clean up
-aws ec2 terminate-instances --instance-ids <YOUR_INSTANCE_ID> --region us-east-1
-aws ec2 delete-security-group --group-id <YOUR_SG_ID> --region us-east-1 || true
-```
-
-> [!TIP]
-> This entirely eliminates having to click through the AWS Console, keeps everyone on identical environments, and guarantees cost cleanup for ad-hoc builders!
+The exec log section includes idempotent environment variable setup and explicit build/push steps. Repeat this flow for every new image version.
 
 ---
 
@@ -428,139 +164,31 @@ aws ec2 terminate-instances --instance-ids <INSTANCE_ID> --region us-east-1
 
 ## Backend 1 — EC2 (Docker Container)
 
-### Step 1.1 — Environment variables & prerequisites
+See [exec log.md](exec%20log.md) **Section 5** for the tested EC2 backend deployment:
 
-Before launching, set these environment variables in your CloudShell or terminal:
-
-```bash
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export S3_BUCKET="rmit-music-images-unique-91725"
-export REGION="us-east-1"
-export BACKEND_PORT="80"
-```
-
-### Step 1.2 — Launch the EC2 instance
-
-From **EC2 → Launch Instances**:
-
-| Setting | Value |
-|---|---|
-| Name | `music-subscription-ec2-backend` |
-| AMI | Amazon Linux 2023 |
-| Instance type | `t2.small` |
-| Key pair | `vockey` |
-| Security Group | Create new: Allow **HTTP (port 80)** from `0.0.0.0/0` |
-| IAM instance profile | `LabInstanceProfile` |
-| User data | See Step 1.3 |
-
-### Step 1.3 — User data script
-
-Use [deploy/ec2/user_data.sh](deploy/ec2/user_data.sh). Before pasting, replace:
-- `CHANGE_ME_ACCOUNT_ID` → `$ACCOUNT_ID`
-- `CHANGE_ME_BUCKET` → `$S3_BUCKET`
-
-Then paste into the **User data** field.
-
-### Step 1.4 — Verify deployment
-
-1. Wait for **Status Checks = 2/2 passed**.
-2. Get the **Public IPv4 DNS**: `EC2_PUBLIC_DNS=<value>`
-3. Test:
-
-```bash
-curl -s http://$EC2_PUBLIC_DNS/health | jq .
-# Expected: {"status":"ok"}
-```
-
-### Step 1.5 — Teardown
-
-```bash
-aws ec2 terminate-instances --instance-ids <INSTANCE_ID> --region $REGION
-```
+1. In CloudShell, set env vars: `ACCOUNT_ID`, `S3_BUCKET`, `REGION`.
+2. Launch EC2 instance (Amazon Linux 2023, `t2.micro` or larger, `LabInstanceProfile`).
+3. Edit [deploy/ec2/user_data.sh](deploy/ec2/user_data.sh) with your env var values and paste into **User data**.
+4. Wait for **Status Checks = 2/2 passed**.
+5. Get the **Public IPv4 DNS** and test: `curl -s http://<DNS>/health`.
+6. Expected: `{"status":"ok"}`.
+7. Terminate when done.
 
 ---
 
 ## Backend 2 — ECS Fargate (Managed Containers)
 
-### Step 2.1 — Environment variables & prerequisites
+See [exec log.md](exec%20log.md) **Section 6–7** for the tested ECS Fargate deployment:
 
-```bash
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export CLUSTER_NAME="music-subscription-cluster"
-export SERVICE_NAME="music-subscription-service"
-export S3_BUCKET="rmit-music-images-unique-91725"
-export REGION="us-east-1"
-export TASK_DEFINITION="music-subscription-api"
-```
-
-### Step 2.2 — Create ECS cluster & networking
-
-1. **Create ECS cluster** (via Console or AWS SDK):
-   - Name: `music-subscription-cluster`
-   - Infrastructure: Fargate
-
-2. **Create CloudWatch Log Group**:
-```bash
-aws logs create-log-group --log-group-name /ecs/$TASK_DEFINITION --region $REGION
-```
-
-3. **Get VPC and subnets**:
-```bash
-VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text)
-SUBNET_IDS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC_ID --query "Subnets[0:2].SubnetId" --output text)
-```
-
-4. **Create Security Group**:
-```bash
-SG_ID=$(aws ec2 create-security-group --group-name ecs-music-sg --description "ECS backend" --vpc-id $VPC_ID --query GroupId --output text --region $REGION)
-aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 80 --cidr 0.0.0.0/0 --region $REGION
-```
-
-5. **Create ALB and Target Group**:
-```bash
-ALB_ARN=$(aws elbv2 create-load-balancer --name music-sub-alb --subnets $SUBNET_IDS --security-groups $SG_ID --scheme internet-facing --type application --query "LoadBalancers[0].LoadBalancerArn" --output text --region $REGION)
-TG_ARN=$(aws elbv2 create-target-group --name music-sub-tg --protocol HTTP --port 80 --vpc-id $VPC_ID --target-type ip --health-check-path /health --query "TargetGroups[0].TargetGroupArn" --output text --region $REGION)
-aws elbv2 create-listener --load-balancer-arn $ALB_ARN --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$TG_ARN --region $REGION
-```
-
-6. **Get ALB DNS**:
-```bash
-ALB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN --query "LoadBalancers[0].DNSName" --output text --region $REGION)
-echo $ALB_DNS
-```
-
-### Step 2.3 — Deploy ECS service
-
-Use [deploy/ecs/deploy-ecs.sh](deploy/ecs/deploy-ecs.sh) with env vars:
-
-```bash
-bash deploy/ecs/deploy-ecs.sh \
-  --account-id $ACCOUNT_ID \
-  --cluster $CLUSTER_NAME \
-  --service $SERVICE_NAME \
-  --lab-role-arn "arn:aws:iam::$ACCOUNT_ID:role/LabRole" \
-  --bucket $S3_BUCKET \
-  --region $REGION
-```
-
-### Step 2.4 — Verify and test
-
-```bash
-curl -s http://$ALB_DNS/health | jq .
-# Expected: {"status":"ok"}
-```
-
-### Step 2.5 — Teardown ECS
-
-```bash
-aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --desired-count 0 --region $REGION
-aws ecs delete-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force --region $REGION
-aws elbv2 delete-load-balancer --load-balancer-arn $ALB_ARN --region $REGION
-aws elbv2 delete-target-group --target-group-arn $TG_ARN --region $REGION
-aws ec2 delete-security-group --group-id $SG_ID --region $REGION
-aws ecs delete-cluster --cluster $CLUSTER_NAME --region $REGION
-aws logs delete-log-group --log-group-name /ecs/$TASK_DEFINITION --region $REGION
-```
+1. In CloudShell, set env vars: `ACCOUNT_ID`, `CLUSTER_NAME`, `SERVICE_NAME`, `S3_BUCKET`, `REGION`, `TASK_DEFINITION`.
+2. Create an ECS cluster (via AWS Console): Name `music-subscription-cluster`, Infrastructure: Fargate.
+3. Create CloudWatch log group: `aws logs create-log-group --log-group-name /ecs/$TASK_DEFINITION`.
+4. Get VPC, subnets, create security group, ALB, and target group (see exec log Section 6 for exact commands).
+5. Store ALB DNS: `ALB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN ...)`.
+6. If first deployment, run `aws ecs create-service` once (exec log Section 6, Step 2.3).
+7. Deploy: `bash deploy/ecs/deploy-ecs.sh --account-id $ACCOUNT_ID --cluster $CLUSTER_NAME --service $SERVICE_NAME --lab-role-arn arn:aws:iam::$ACCOUNT_ID:role/LabRole --bucket $S3_BUCKET --region $REGION`.
+8. Test: `curl -s http://$ALB_DNS/health`.
+9. Expected: `{"status":"ok"}`.
 
 ---
 

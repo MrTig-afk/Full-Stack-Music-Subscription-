@@ -261,6 +261,8 @@ echo $ALB_DNS
 
 # 7. Connecto to the Docker Image Builder EC2 from earlier
 
+"echo" all the previous variables and use the `export VAR_NAME=var_value` syntax to store them in the builder shell.
+
 ```bash
 cd ~/music-app
 bash deploy/ecs/deploy-ecs.sh \
