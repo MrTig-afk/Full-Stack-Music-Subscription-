@@ -99,7 +99,7 @@ def search_songs(payload: SearchRequest) -> MusicSearchResponse:
     Example:
         POST /songs/search
         {"title": "Imagine", "artist": "John Lennon"}
-    """
+
     :raises HTTPException: If no search criteria are provided.
     :return _type_: A list of songs matching the search criteria. Each song includes a presigned image URL if an image is associated with it.
     """
