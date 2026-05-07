@@ -320,6 +320,33 @@ http://<BUCKET_NAME>.s3-website-us-east-1.amazonaws.com
 > [!NOTE]
 > S3 static websites must be accessed via HTTP, not HTTPS (unless you add CloudFront).
 
+### Option 2.5: Automated S3 Deployment (CloudShell)
+
+For a faster deployment, use the provided bash script:
+
+```bash
+# From project root in CloudShell or local shell:
+bash ./deploy/frontend/deploy-frontend-s3.sh \
+  --api-base-url "http://<your-backend-url>"
+```
+
+**Supported backend URLs:**
+- EC2 direct: `http://<EC2_PUBLIC_DNS>`
+- ECS ALB: `http://<ALB_DNS_NAME>`
+- Lambda/API GW: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod`
+
+The script handles:
+- S3 bucket creation with unique name
+- Static website hosting configuration
+- Public access policy
+- Frontend file upload
+- CORS headers
+
+Output: S3 website URL (e.g., `http://music-subscription-frontend-XXXXX.s3-website-us-east-1.amazonaws.com`)
+
+> [!TIP]
+> Use this script for all deployments. The manual steps above are for reference/troubleshooting.
+
 ### Option 3: CloudFront CDN in front of S3
 
 For HTTPS and global caching:
