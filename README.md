@@ -64,15 +64,17 @@ Drops and recreates all three tables, then reruns all four DDL scripts. Expected
 ## DynamoDB Schema
 
 ### `login`
-| Key | Type |
-|---|---|
+
+| Key          | Type   |
+| ------------ | ------ |
 | `email` (PK) | String |
 
 Attributes: `user_name`, `password`. Billing: PAY_PER_REQUEST.
 
 ### `music`
-| Key | Type |
-|---|---|
+
+| Key          | Type   |
+| ------------ | ------ |
 | `title` (PK) | String |
 | `album` (SK) | String |
 
@@ -80,19 +82,20 @@ Attributes: `artist`, `year`, `img_url`, `music_id`, `title_lower`, `artist_lowe
 
 Indexes:
 
-| Index | Type | Keys | Purpose |
-|---|---|---|---|
-| `TitleYearIndex` | LSI | PK: `title`, SK: `year` | Title + year range queries |
-| `TitlePrefixIndex` | GSI | PK: `first_char`, SK: `title_lower` | Efficient prefix-based title search (majority access pattern) |
-| `ArtistYearIndex` | GSI | PK: `artist`, SK: `year` | Artist and artist + year queries (demo patterns) |
+| Index              | Type | Keys                                | Purpose                                                       |
+| ------------------ | ---- | ----------------------------------- | ------------------------------------------------------------- |
+| `TitleYearIndex`   | LSI  | PK: `title`, SK: `year`             | Title + year range queries                                    |
+| `TitlePrefixIndex` | GSI  | PK: `first_char`, SK: `title_lower` | Efficient prefix-based title search (majority access pattern) |
+| `ArtistYearIndex`  | GSI  | PK: `artist`, SK: `year`            | Artist and artist + year queries (demo patterns)              |
 
 Billing: PAY_PER_REQUEST.
 
 ### `subscriptions`
-| Key | Type |
-|---|---|
-| `user_email` (PK) | String |
-| `music_id` (SK) | String — `"{title}#{album}"` |
+
+| Key               | Type                         |
+| ----------------- | ---------------------------- |
+| `user_email` (PK) | String                       |
+| `music_id` (SK)   | String — `"{title}#{album}"` |
 
 Billing: PAY_PER_REQUEST.
 
@@ -100,18 +103,18 @@ Billing: PAY_PER_REQUEST.
 
 ## API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `POST` | `/register` | Register new user |
-| `POST` | `/login` | Authenticate user |
-| `GET/POST/DELETE` | `/logout` | End session |
-| `POST` | `/songs/search` | Search songs (JSON body) |
-| `GET` | `/songs/search` | Search songs (query params) |
-| `GET` | `/subscriptions/{email}` | List user subscriptions |
-| `POST` | `/subscriptions` | Add subscription |
-| `DELETE` | `/subscriptions` | Remove subscription (JSON body) |
-| `DELETE` | `/subscriptions/{email}/{music_id}` | Remove subscription (path params) |
+| Method            | Path                                | Description                       |
+| ----------------- | ----------------------------------- | --------------------------------- |
+| `GET`             | `/health`                           | Health check                      |
+| `POST`            | `/register`                         | Register new user                 |
+| `POST`            | `/login`                            | Authenticate user                 |
+| `GET/POST/DELETE` | `/logout`                           | End session                       |
+| `POST`            | `/songs/search`                     | Search songs (JSON body)          |
+| `GET`             | `/songs/search`                     | Search songs (query params)       |
+| `GET`             | `/subscriptions/{email}`            | List user subscriptions           |
+| `POST`            | `/subscriptions`                    | Add subscription                  |
+| `DELETE`          | `/subscriptions`                    | Remove subscription (JSON body)   |
+| `DELETE`          | `/subscriptions/{email}/{music_id}` | Remove subscription (path params) |
 
 All search fields (`title`, `artist`, `album`, `year`) are optional but at least one is required. Title, artist, and album use case-insensitive substring matching. Multiple fields are AND-combined by default; if AND returns fewer than 3 results, top OR matches are appended.
 
@@ -121,11 +124,11 @@ All search fields (`title`, `artist`, `album`, `year`) are optional but at least
 
 Three independent backend deployments are supported, each fully functional and independently validated:
 
-| Backend | Entry point | Frontend hosting |
-|---|---|---|
-| EC2 | Docker container on port 80 | S3 static website |
-| ECS Fargate | Docker container via ALB | S3 static website |
-| Lambda | `lambda_handler.handler` (Mangum) via API Gateway | S3 static website |
+| Backend     | Entry point                                       | Frontend hosting  |
+| ----------- | ------------------------------------------------- | ----------------- |
+| EC2         | Docker container on port 80                       | S3 static website |
+| ECS Fargate | Docker container via ALB                          | S3 static website |
+| Lambda      | `lambda_handler.handler` (Mangum) via API Gateway | S3 static website |
 
 See **[deployment_guide.md](deployment_guide.md)** for step-by-step instructions covering all three backends, the Docker build/push workflow, API Gateway setup, and teardown.
 

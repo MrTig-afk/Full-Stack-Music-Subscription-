@@ -21,20 +21,17 @@ for TABLE in "${TABLES[@]}"; do
     aws dynamodb wait table-not-exists --table-name "$TABLE" --region "$REGION" && echo "    '$TABLE' gone."
 done
 
-echo "==> Installing dependencies..."
-pip install -r requirements.txt -q
-
 echo "==> Q1: Creating login table + seeding users..."
-python q1_create_login.py
+uv run q1_create_login.py
 
 echo "==> Q2: Creating music table..."
-python q2_create_music.py
+uv run q2_create_music.py
 
 echo "==> Q3: Loading songs..."
-python q3_load_music.py
+uv run q3_load_music.py
 
 echo "==> Creating subscriptions table..."
-python create_subscriptions_table.py
+uv run create_subscriptions_table.py
 
 echo ""
 echo "==> All done. Final item counts:"

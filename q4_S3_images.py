@@ -9,7 +9,7 @@ import requests
 from tqdm.auto import tqdm
 
 # UPDATE THIS: S3 bucket names must be globally unique!
-BUCKET_NAME = "rmit-music-images-unique-91725"
+BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-91725")
 
 logging.basicConfig(level=logging.INFO)
 
