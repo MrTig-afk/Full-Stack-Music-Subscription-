@@ -49,7 +49,6 @@
     registerSuccess: document.getElementById("register-success"),
     registerSubmit: document.getElementById("register-submit"),
     userName: document.getElementById("user-name"),
-    userDisplay: document.getElementById("user-display"),
     logoutButton: document.getElementById("logout-button"),
     refreshSubscriptions: document.getElementById("refresh-subscriptions"),
     subscriptionsEmpty: document.getElementById("subscriptions-empty"),
@@ -244,7 +243,6 @@
   function enterApp(session, options = {}) {
     saveSession(session);
     dom.userName.textContent = session.userName;
-    dom.userDisplay.textContent = session.userName;
     showApp();
     clearMessage(dom.queryMessage);
     dom.resultsEmpty.classList.add("hidden");
