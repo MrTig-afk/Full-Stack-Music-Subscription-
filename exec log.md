@@ -274,7 +274,7 @@ bash deploy/ecs/deploy-ecs.sh \
   --region "$REGION"
 ```
 
-# 7. API Gateway + Lambda deployment execution steps
+# 8. API Gateway + Lambda deployment execution steps
 ## Install AWS SAM CLI in CloudShell
 ```bash
 wget https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip
