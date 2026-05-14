@@ -39,10 +39,10 @@ frontend_origins = [
 # Ref: <https://fastapi.tiangolo.com/tutorial/cors/#use-corsmiddleware>
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=frontend_origins if frontend_origins else ["*"],
-    allow_credentials=False,  # we're not using cookies/sessions
-    allow_methods=["*"],  # Allow GET, POST, DELETE, etc.
-    allow_headers=["*"],  # Allow all request headers
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include all API routers for structured endpoint organization.
