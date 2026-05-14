@@ -1,150 +1,199 @@
 # Music Subscription App
 
-A cloud-based music subscription web application built on AWS. Users can log in, search for songs, and manage personal subscriptions. The FastAPI backend connects to DynamoDB and S3; the frontend is a static HTML/JS/CSS app.
+A cloud-based music subscription web app for the RMIT cloud computing assignment. The backend is a FastAPI service backed by DynamoDB and S3, and the frontend is a static HTML/CSS/JavaScript app that can point at any deployed backend through an API base URL.
 
-**Tech stack:** Python 3.12, FastAPI, Boto3, Uvicorn, Mangum | HTML5, Vanilla JS | DynamoDB, S3, EC2, ECS Fargate, Lambda + API Gateway
+## Capabilities
 
----
+- User registration, login, and logout.
+- Song search by title, artist, album, and year.
+- Personal music subscriptions stored per user.
+- Artist images served through backend-generated S3 presigned URLs.
+- Static frontend with configurable backend target via `config.js`, URL query parameter, or `localStorage`.
+- Deployment paths for EC2, ECS Fargate, and Lambda with API Gateway.
+
+> Security note: this is a demo/assignment app. Passwords are stored in plaintext and browser session state uses `sessionStorage`; use password hashing and real auth tokens for production.
+
+## Tech Stack
+
+| Area      | Tools                                                  |
+| --------- | ------------------------------------------------------ |
+| Backend   | Python 3.12, FastAPI, Uvicorn, Pydantic, Boto3, Mangum |
+| Frontend  | HTML5, CSS, vanilla JavaScript                         |
+| AWS       | DynamoDB, S3, EC2, ECS Fargate, Lambda, API Gateway    |
+| Packaging | `uv`, Docker, `requirements.txt` export                |
+
+## Repository Layout
+
+| Path                            | Purpose                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `app/`                          | FastAPI app, DynamoDB/S3 helpers, routers, schemas                      |
+| `frontend/`                     | Static web frontend (`index.html`, `app.js`, `styles.css`, `config.js`) |
+| `deploy/`                       | EC2, ECS, Lambda, and API Gateway deployment assets                     |
+| `q1_create_login.py`            | Create and seed the `login` table                                       |
+| `q2_create_music.py`            | Create the `music` table and indexes                                    |
+| `q3_load_music.py`              | Load songs from `2026a2_songs.json`                                     |
+| `create_subscriptions_table.py` | Create the `subscriptions` table                                        |
+| `q4_S3_images.py`               | Download artist images and upload them to S3                            |
+| `deployment_guide.md`           | Full AWS deployment guide                                               |
 
 ## Local Development
 
-### Install dependencies
+Install runtime dependencies:
 
 ```bash
 uv sync --no-dev
 ```
 
-### Configure AWS credentials
+Configure AWS credentials before using DynamoDB or S3:
 
 ```bash
 aws configure
-# For Learner Lab, also set AWS_SESSION_TOKEN:
+
+# AWS Learner Lab also needs the session token.
 export AWS_SESSION_TOKEN=<paste from AWS Details>
 ```
 
-### Run backend
+Run the backend:
 
 ```bash
 uv run dev
-# → http://127.0.0.1:8000
-# → http://127.0.0.1:8000/docs  (Swagger UI)
 ```
 
-### Run frontend
+Backend URLs:
+
+```text
+http://127.0.0.1:8000
+http://127.0.0.1:8000/docs
+```
+
+Run the frontend:
 
 ```bash
-cd frontend && python -m http.server 5173
-# → http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8000
+cd frontend
+python -m http.server 5173
 ```
 
----
+Open the frontend against the local backend:
+
+```text
+http://127.0.0.1:5173/?apiBase=http://127.0.0.1:8000
+```
 
 ## Database Initialisation
 
-Run these scripts once in order. The reset script handles teardown and re-runs all four cleanly.
+Run these scripts once, in order:
 
 ```bash
-python q1_create_login.py           # login table + 10 seed users
-python q2_create_music.py           # music table + indexes
-python q3_load_music.py             # load 137 songs from 2026a2_songs.json
+python q1_create_login.py
+python q2_create_music.py
+python q3_load_music.py
 python create_subscriptions_table.py
-python q4_S3_images.py              # download artist images → upload to S3
+python q4_S3_images.py
 ```
 
-**Full reset (CloudShell):**
+Expected seed data:
+
+| Table           | Expected count  |
+| --------------- | --------------- |
+| `login`         | 10 users        |
+| `music`         | 137 songs       |
+| `subscriptions` | 0 subscriptions |
+
+For a clean rebuild in CloudShell:
 
 ```bash
-chmod +x reset_music_table.sh && ./reset_music_table.sh
+chmod +x reset_music_table.sh
+./reset_music_table.sh
 ```
 
-Drops and recreates all three tables, then reruns all four DDL scripts. Expected final counts: `login: 10`, `music: 137`, `subscriptions: 0`.
+The reset script drops and recreates the DynamoDB tables, reloads the song data, and prepares the S3 image data.
 
----
+## DynamoDB Tables
 
-## DynamoDB Schema
+| Table           | Keys                               | Notes                                                                         |
+| --------------- | ---------------------------------- | ----------------------------------------------------------------------------- |
+| `login`         | `email` (PK)                       | Stores `user_name` and `password`                                             |
+| `music`         | `title` (PK), `album` (SK)         | Stores song metadata, image key, lower-case search fields, and search indexes |
+| `subscriptions` | `user_email` (PK), `music_id` (SK) | Stores subscribed songs per user, where `music_id` is `{title}#{album}`       |
 
-### `login`
+The `music` table includes `TitleYearIndex`, `TitlePrefixIndex`, and `ArtistYearIndex` to support the query patterns used by the app.
 
-| Key          | Type   |
-| ------------ | ------ |
-| `email` (PK) | String |
+## API Overview
 
-Attributes: `user_name`, `password`. Billing: PAY_PER_REQUEST.
+| Method            | Path                                | Description                              |
+| ----------------- | ----------------------------------- | ---------------------------------------- |
+| `GET`             | `/health`                           | Health check                             |
+| `POST`            | `/register`                         | Register a user                          |
+| `POST`            | `/login`                            | Authenticate a user                      |
+| `GET/POST/DELETE` | `/logout`                           | End session state                        |
+| `POST`            | `/songs/search`                     | Search songs with a JSON body            |
+| `GET`             | `/songs/search`                     | Search songs with query parameters       |
+| `GET`             | `/subscriptions/{email}`            | List a user's subscriptions              |
+| `POST`            | `/subscriptions`                    | Add a subscription                       |
+| `DELETE`          | `/subscriptions`                    | Remove a subscription with a JSON body   |
+| `DELETE`          | `/subscriptions/{email}/{music_id}` | Remove a subscription by path parameters |
 
-### `music`
+Search accepts optional `title`, `artist`, `album`, and `year` fields, but at least one field is required. Text fields are case-insensitive substring matches; `year` is an exact match. Multiple fields are AND-combined first, then supplemented with high-scoring OR matches when too few exact combined matches are found.
 
-| Key          | Type   |
-| ------------ | ------ |
-| `title` (PK) | String |
-| `album` (SK) | String |
+## Frontend Configuration
 
-Attributes: `artist`, `year`, `img_url`, `music_id`, `title_lower`, `artist_lower`, `album_lower`, `first_char`.
+The default API target lives in `frontend/config.js`:
 
-Indexes:
+```javascript
+window.APP_CONFIG = {
+  appName: "Music Subscription",
+  apiBaseUrl: "http://127.0.0.1:8000",
+};
+```
 
-| Index              | Type | Keys                                | Purpose                                                       |
-| ------------------ | ---- | ----------------------------------- | ------------------------------------------------------------- |
-| `TitleYearIndex`   | LSI  | PK: `title`, SK: `year`             | Title + year range queries                                    |
-| `TitlePrefixIndex` | GSI  | PK: `first_char`, SK: `title_lower` | Efficient prefix-based title search (majority access pattern) |
-| `ArtistYearIndex`  | GSI  | PK: `artist`, SK: `year`            | Artist and artist + year queries (demo patterns)              |
+For demos or deployed environments, override the backend without editing files:
 
-Billing: PAY_PER_REQUEST.
+```text
+http://127.0.0.1:5173/?apiBase=https://api-id.execute-api.us-east-1.amazonaws.com/prod
+```
 
-### `subscriptions`
+The frontend also supports a persistent browser override:
 
-| Key               | Type                         |
-| ----------------- | ---------------------------- |
-| `user_email` (PK) | String                       |
-| `music_id` (SK)   | String — `"{title}#{album}"` |
+```javascript
+localStorage.setItem(
+  "music-subscription-api-base",
+  "https://api-id.execute-api.us-east-1.amazonaws.com/prod",
+);
+```
 
-Billing: PAY_PER_REQUEST.
+Common backend targets:
 
----
-
-## API Endpoints
-
-| Method            | Path                                | Description                       |
-| ----------------- | ----------------------------------- | --------------------------------- |
-| `GET`             | `/health`                           | Health check                      |
-| `POST`            | `/register`                         | Register new user                 |
-| `POST`            | `/login`                            | Authenticate user                 |
-| `GET/POST/DELETE` | `/logout`                           | End session                       |
-| `POST`            | `/songs/search`                     | Search songs (JSON body)          |
-| `GET`             | `/songs/search`                     | Search songs (query params)       |
-| `GET`             | `/subscriptions/{email}`            | List user subscriptions           |
-| `POST`            | `/subscriptions`                    | Add subscription                  |
-| `DELETE`          | `/subscriptions`                    | Remove subscription (JSON body)   |
-| `DELETE`          | `/subscriptions/{email}/{music_id}` | Remove subscription (path params) |
-
-All search fields (`title`, `artist`, `album`, `year`) are optional but at least one is required. Title, artist, and album use case-insensitive substring matching. Multiple fields are AND-combined by default; if AND returns fewer than 3 results, top OR matches are appended.
-
----
+| Backend         | Example API base URL                                        |
+| --------------- | ----------------------------------------------------------- |
+| EC2 direct      | `http://<EC2_PUBLIC_DNS>`                                   |
+| ECS through ALB | `http://<ALB_DNS_NAME>`                                     |
+| API Gateway     | `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod` |
 
 ## Deployment
 
-Three independent backend deployments are supported, each fully functional and independently validated:
+The project documents three independently deployable backend options:
 
-| Backend     | Entry point                                       | Frontend hosting  |
-| ----------- | ------------------------------------------------- | ----------------- |
-| EC2         | Docker container on port 80                       | S3 static website |
-| ECS Fargate | Docker container via ALB                          | S3 static website |
-| Lambda      | `lambda_handler.handler` (Mangum) via API Gateway | S3 static website |
+| Backend     | Entry point                                             |
+| ----------- | ------------------------------------------------------- |
+| EC2         | Docker container running the FastAPI app                |
+| ECS Fargate | Docker container behind an Application Load Balancer    |
+| Lambda      | `lambda_handler.handler` through Mangum and API Gateway |
 
-See **[deployment_guide.md](deployment_guide.md)** for step-by-step instructions covering all three backends, the Docker build/push workflow, API Gateway setup, and teardown.
+The frontend is static and can be hosted separately, then pointed at any backend through `apiBase`.
 
----
+See [deployment_guide.md](deployment_guide.md) for full AWS setup, validation, and teardown steps.
 
 ## Dependency Management
 
 This project uses `uv` with `pyproject.toml` and `uv.lock`.
 
 ```bash
-# Sync environment
+# Sync runtime dependencies.
 uv sync --no-dev
 
-# After editing pyproject.toml
+# Refresh lockfile after dependency changes.
 uv lock
 
-# Regenerate requirements.txt (used by Docker and CloudShell)
+# Regenerate requirements.txt for Docker and CloudShell.
 uv export --no-emit-workspace --no-emit-project --no-hashes --no-annotate --no-dev > requirements.txt
 ```
