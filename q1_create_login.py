@@ -1,16 +1,20 @@
 import logging
+from typing import TYPE_CHECKING
 
 import boto3
 from tqdm.auto import tqdm
 
 # --- UPDATE YOUR DETAILS HERE ---
-STUDENT_ID = "s4139673"  # Replace with your actual RMIT ID
-YOUR_NAME = "KaushikNarumanchi"  # Replace with your name (FirstnameLastname)
+STUDENT_ID: str = "s4139673"  # Replace with your actual RMIT ID
+YOUR_NAME: str = "KaushikNarumanchi"  # Replace with your name (FirstnameLastname)
 # --------------------------------
 
 logging.basicConfig(
     level=logging.INFO,
 )
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
 
 
 def create_and_populate_login() -> None:
@@ -18,11 +22,11 @@ def create_and_populate_login() -> None:
     This function creates a DynamoDB table named 'login' with 'email' as the primary key.
     It then populates the table with 10 entities following the specified pattern for email, user_name, and password.
     """
-    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")
 
     # 1. Create Table (Using 'email' as the primary key)
     try:
-        table = dynamodb.create_table(
+        table: "Table" = dynamodb.create_table(
             TableName="login",
             KeySchema=[{"AttributeName": "email", "KeyType": "HASH"}],
             AttributeDefinitions=[{"AttributeName": "email", "AttributeType": "S"}],

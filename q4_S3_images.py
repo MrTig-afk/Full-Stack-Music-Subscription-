@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import boto3
@@ -9,13 +10,17 @@ import requests
 from tqdm.auto import tqdm
 
 # UPDATE THIS: S3 bucket names must be globally unique!
-BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-91725")
+BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-91725")
 
 logging.basicConfig(level=logging.INFO)
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
+    from requests import Response
 
-def run_s3_pipeline():
-    s3 = boto3.client("s3", region_name="us-east-1")
+
+def run_s3_pipeline() -> None:
+    s3: "S3Client" = boto3.client("s3", region_name="us-east-1")
 
     # 1. Create the Bucket
     try:

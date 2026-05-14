@@ -1,13 +1,17 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any, Dict, TYPE_CHECKING
 
 import boto3
 from tqdm.auto import tqdm
 
-MUSIC_DATAFILE = Path("2026a2_songs.json")
+MUSIC_DATAFILE: Path = Path("2026a2_songs.json")
 
 logging.basicConfig(level=logging.INFO)
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
 
 
 def build_music_id(title: str, album: str) -> str:
@@ -15,19 +19,21 @@ def build_music_id(title: str, album: str) -> str:
     return f"{title}#{album}"
 
 
-def load_music_data():
+def load_music_data() -> None:
     """
     This function loads music data from a JSON file into the DynamoDB "music" table.
     - It uses batch writing for efficient uploads.
     - It checks for duplicates based on the primary key (title + album) before uploading.
     - It logs the number of songs uploaded and skipped due to duplicates.
     """
-    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    table = dynamodb.Table("music")
+    dynamodb: "DynamoDBServiceResource" = boto3.resource(
+        "dynamodb", region_name="us-east-1"
+    )
+    table: "Table" = dynamodb.Table("music")
 
     # Load the JSON file
     with open(MUSIC_DATAFILE, "r") as file:
-        data = json.load(file)
+        data: Dict[str, Any] = json.load(file)
 
     logging.info("Uploading songs to DynamoDB...")
     uploaded = 0
@@ -49,13 +55,15 @@ def load_music_data():
 
             # Computed lowercase attributes for case-insensitive DynamoDB filtering
             # and for the TitlePrefixIndex GSI (first_char PK, title_lower SK).
-            title_val  = str(song.get("title",  ""))
+            title_val = str(song.get("title", ""))
             artist_val = str(song.get("artist", ""))
-            album_val  = str(song.get("album",  ""))
-            song["title_lower"]  = title_val.lower()
+            album_val = str(song.get("album", ""))
+            song["title_lower"] = title_val.lower()
             song["artist_lower"] = artist_val.lower()
-            song["album_lower"]  = album_val.lower()
-            song["first_char"]   = title_val[0].lower() if title_val and title_val[0].isalpha() else "#"
+            song["album_lower"] = album_val.lower()
+            song["first_char"] = (
+                title_val[0].lower() if title_val and title_val[0].isalpha() else "#"
+            )
 
             # Query DynamoDB for existing item with same key
             try:

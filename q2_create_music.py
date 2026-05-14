@@ -1,8 +1,12 @@
 import logging
+from typing import TYPE_CHECKING
 
 import boto3
 
 logging.basicConfig(level=logging.INFO)
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource
 
 
 def create_music_table() -> None:
@@ -19,11 +23,9 @@ def create_music_table() -> None:
       instead of a full table scan (~9 RCU).
     - GSI ArtistYearIndex: serves the graded demo queries (artist + year filter,
       e.g. "Jimmy Buffett in 1974"). Exact artist match is efficient via Query.
-    - Billing: PAY_PER_REQUEST avoids provisioned-throughput throttling during
-      bursty demo usage and is consistent with the subscriptions table.
     """
     # Connect to AWS using the credentials you configured
-    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")
 
     try:
         table = dynamodb.create_table(
@@ -33,19 +35,25 @@ def create_music_table() -> None:
                 {"AttributeName": "album", "KeyType": "RANGE"},  # Sort key
             ],
             AttributeDefinitions=[
-                {"AttributeName": "title",       "AttributeType": "S"},
-                {"AttributeName": "album",       "AttributeType": "S"},
-                {"AttributeName": "artist",      "AttributeType": "S"},
-                {"AttributeName": "year",        "AttributeType": "S"},
-                {"AttributeName": "first_char",  "AttributeType": "S"},  # TitlePrefixIndex PK
-                {"AttributeName": "title_lower", "AttributeType": "S"},  # TitlePrefixIndex SK
+                {"AttributeName": "title", "AttributeType": "S"},
+                {"AttributeName": "album", "AttributeType": "S"},
+                {"AttributeName": "artist", "AttributeType": "S"},
+                {"AttributeName": "year", "AttributeType": "S"},
+                {
+                    "AttributeName": "first_char",
+                    "AttributeType": "S",
+                },  # TitlePrefixIndex PK
+                {
+                    "AttributeName": "title_lower",
+                    "AttributeType": "S",
+                },  # TitlePrefixIndex SK
             ],
             LocalSecondaryIndexes=[
                 {
                     "IndexName": "TitleYearIndex",
                     "KeySchema": [
                         {"AttributeName": "title", "KeyType": "HASH"},
-                        {"AttributeName": "year",  "KeyType": "RANGE"},
+                        {"AttributeName": "year", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 }
@@ -54,7 +62,7 @@ def create_music_table() -> None:
                 {
                     "IndexName": "TitlePrefixIndex",
                     "KeySchema": [
-                        {"AttributeName": "first_char",  "KeyType": "HASH"},
+                        {"AttributeName": "first_char", "KeyType": "HASH"},
                         {"AttributeName": "title_lower", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
@@ -63,12 +71,11 @@ def create_music_table() -> None:
                     "IndexName": "ArtistYearIndex",
                     "KeySchema": [
                         {"AttributeName": "artist", "KeyType": "HASH"},
-                        {"AttributeName": "year",   "KeyType": "RANGE"},
+                        {"AttributeName": "year", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
             ],
-            BillingMode="PAY_PER_REQUEST",
         )
         logging.info("Creating table... please wait.")
         table.meta.client.get_waiter("table_exists").wait(TableName="music")
