@@ -26,9 +26,7 @@ def load_music_data() -> None:
     - It checks for duplicates based on the primary key (title + album) before uploading.
     - It logs the number of songs uploaded and skipped due to duplicates.
     """
-    dynamodb: "DynamoDBServiceResource" = boto3.resource(
-        "dynamodb", region_name="us-east-1"
-    )
+    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")  # type: ignore
     table: "Table" = dynamodb.Table("music")
 
     # Load the JSON file

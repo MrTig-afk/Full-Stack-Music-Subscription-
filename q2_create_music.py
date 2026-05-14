@@ -25,7 +25,7 @@ def create_music_table() -> None:
       e.g. "Jimmy Buffett in 1974"). Exact artist match is efficient via Query.
     """
     # Connect to AWS using the credentials you configured
-    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")
+    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")  # type: ignore
 
     try:
         table = dynamodb.create_table(

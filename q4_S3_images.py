@@ -1,12 +1,12 @@
-import io
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 from urllib.parse import urlparse
 
 import boto3
 import requests
+from requests import Response
 from tqdm.auto import tqdm
 
 # UPDATE THIS: S3 bucket names must be globally unique!
@@ -16,11 +16,10 @@ logging.basicConfig(level=logging.INFO)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
-    from requests import Response
 
 
 def run_s3_pipeline() -> None:
-    s3: "S3Client" = boto3.client("s3", region_name="us-east-1")
+    s3: "S3Client" = boto3.client("s3", region_name="us-east-1")  # type: ignore
 
     # 1. Create the Bucket
     try:
@@ -31,19 +30,19 @@ def run_s3_pipeline() -> None:
 
     # 2. Process JSON Data
     with open("2026a2_songs.json", "r") as f:
-        data = json.load(f)
+        data: Dict[str, Any] = json.load(f)
 
     # Use a set to avoid downloading the same image twice (Efficiency!)
-    processed_urls = set()
+    processed_urls: Set[str] = set()
 
     logging.info("Starting image transfer to S3...")
     for song in tqdm(data["songs"], leave=False, desc="S3 upload"):
-        img_url = song.get("img_url")
+        img_url: Optional[str] = song.get("img_url")
         if img_url and img_url not in processed_urls:
-            filename = os.path.basename(urlparse(img_url).path)
+            filename: str = os.path.basename(urlparse(img_url).path)
 
             # Download image into memory
-            response = requests.get(img_url, stream=True)
+            response: Response = requests.get(img_url, stream=True)
             if response.status_code == 200:
                 # Upload directly to S3 without saving locally
                 s3.put_object(

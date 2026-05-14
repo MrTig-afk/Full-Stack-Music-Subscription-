@@ -22,7 +22,7 @@ def create_and_populate_login() -> None:
     This function creates a DynamoDB table named 'login' with 'email' as the primary key.
     It then populates the table with 10 entities following the specified pattern for email, user_name, and password.
     """
-    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")
+    dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-1")  # type: ignore
 
     # 1. Create Table (Using 'email' as the primary key)
     try:
