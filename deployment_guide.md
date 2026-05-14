@@ -208,7 +208,8 @@ Install AWS SAM CLI if not already done:
 ```bash
 sam --version  # Verify installation
 ```
-
+Refer exec log.md file for the detailed execution of Lambda deployment.
+ 
 ### Step 3.2 — Build and deploy Lambda
 
 From project root:

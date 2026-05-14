@@ -273,3 +273,94 @@ bash deploy/ecs/deploy-ecs.sh \
   --bucket "$S3_BUCKET" \
   --region "$REGION"
 ```
+
+# 7. API Gateway + Lambda deployment execution steps
+## Install AWS SAM CLI in CloudShell
+```bash
+wget https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip
+
+unzip aws-sam-cli-linux-x86_64.zip -d sam-installation
+
+./sam-installation/install \
+  --update \
+  --install-dir $HOME/.sam-cli \
+  --bin-dir $HOME/.local/bin
+
+export PATH=$HOME/.local/bin:$PATH
+
+sam --version
+```
+
+## Fix Lambda runtime and environment configuration
+
+Updated deploy/lambda/template.yaml: (command: nano deploy/lambda/template.yaml)
+
+Changed invalid CodeUri
+Removed reserved variable AWS_REGION
+
+Correct configuration: 
+
+```bash
+CodeUri: ../../
+Runtime: python3.12
+```
+
+## Build Lambda Application
+
+```bash
+rm -rf .aws-sam
+
+sam build -t deploy/lambda/template.yaml
+```
+
+## Configure deployment environment variables
+
+```bash
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+export REGION="us-east-1"
+
+export STACK_NAME="music-subscription-lambda"
+
+export LAB_ROLE_ARN="arn:aws:iam::$ACCOUNT_ID:role/LabRole"
+
+export S3_BUCKET="rmit-music-images-unique-<myname>"
+```
+
+## Delete Failed Cloud formation if required
+
+```bash
+aws cloudformation delete-stack \
+  --stack-name $STACK_NAME \
+  --region $REGION
+```
+Verify deletion:
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name $STACK_NAME \
+  --region $REGION
+```
+
+## Deploy Lambda using SAM
+
+```bash
+sam deploy \
+  --stack-name $STACK_NAME \
+  --region $REGION \
+  --capabilities CAPABILITY_IAM \
+  --resolve-s3 \
+  --parameter-overrides \
+    LabRoleArn="$LAB_ROLE_ARN" \
+    S3BucketName="$S3_BUCKET"
+```
+
+Lambda package exceeded AWS Lambda size limit because unnecessary frontend files and installation artifacts were included in deployment package.
+
+Recommended solution:
+
+Create dedicated backend Lambda source folder
+Keep only:
+lambda_handler.py
+app/
+requirements.txt 
