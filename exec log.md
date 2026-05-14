@@ -364,3 +364,5 @@ Keep only:
 lambda_handler.py
 app/
 requirements.txt 
+
+Deploy frontend separately using S3 static website hosting 
