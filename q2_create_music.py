@@ -30,6 +30,7 @@ def create_music_table() -> None:
     try:
         table = dynamodb.create_table(
             TableName="music",
+            BillingMode="PAY_PER_REQUEST",
             KeySchema=[
                 {"AttributeName": "title", "KeyType": "HASH"},  # Partition key
                 {"AttributeName": "album", "KeyType": "RANGE"},  # Sort key
@@ -75,7 +76,6 @@ def create_music_table() -> None:
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
-                BillingMode="PAY_PER_REQUEST",
             ],
         )
         logging.info("Creating table... please wait.")
