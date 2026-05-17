@@ -48,25 +48,8 @@ music_table = dynamodb.Table(MUSIC_TABLE_NAME)
 subscriptions_table = dynamodb.Table(SUBSCRIPTIONS_TABLE_NAME)
 
 
-def create_presigned_image_url(image_key: str, expires_seconds: int = 3600) -> str:
-    """
-    Generate a presigned URL for an S3 object to allow temporary public access.
-
-    Args:
-        image_key (str): The S3 object key (path) for the image (e.g., "beatles/lennon.jpg")
-        expires_seconds (int, optional): URL expiration time in seconds. Defaults to 3600.
-
-    Returns:
-        str: The presigned S3 URL or the original image key if S3_BUCKET_NAME is not configured.
-    """
-    if not S3_BUCKET_NAME:
-        return image_key
-
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": S3_BUCKET_NAME, "Key": image_key},
-        ExpiresIn=expires_seconds,
-    )
+def get_image_url(image_key: str) -> str:
+    return image_key
 
 
 def test_connection():

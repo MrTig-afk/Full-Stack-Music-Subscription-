@@ -326,8 +326,7 @@ def search_songs(payload: SearchRequest) -> MusicSearchResponse:
     for item in items:
         image_key = item.img_url or item.image_url
         if image_key:
-            item.image_url = create_presigned_image_url(str(image_key))
-
+            item.image_url = str(image_key)
     if not items:
         logger.debug("Song search returned no results")
         return MusicSearchResponse(message="No result is retrieved. Please query again")

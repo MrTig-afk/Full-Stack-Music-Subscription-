@@ -100,7 +100,7 @@ def get_subscriptions(email: str):
     for item in items:
         image_key = item.img_url or item.image_url
         if image_key:
-            item.image_url = create_presigned_image_url(str(image_key))
+            item.image_url = str(image_key)
     logger.debug("Fetched %s subscriptions for email=%s", len(items), email)
     return SubscriptionListResponse(items=items)
 
