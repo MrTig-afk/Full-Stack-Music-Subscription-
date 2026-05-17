@@ -75,6 +75,7 @@ def create_music_table() -> None:
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
+                BillingMode="PAY_PER_REQUEST",
             ],
         )
         logging.info("Creating table... please wait.")
