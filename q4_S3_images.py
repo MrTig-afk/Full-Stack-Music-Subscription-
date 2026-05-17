@@ -10,7 +10,10 @@ from requests import Response
 from tqdm.auto import tqdm
 
 # UPDATE THIS: S3 bucket names must be globally unique!
-BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-gayathritest")
+BUCKET_NAME: str = os.getenv(
+    "S3_BUCKET_NAME",
+    "rmit-music-images-unique-gayathritest",
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,34 +35,57 @@ def run_s3_pipeline() -> None:
     with open("2026a2_songs.json", "r") as f:
         data: Dict[str, Any] = json.load(f)
 
-    # Use a set to avoid downloading the same image twice (Efficiency!)
+    # Track processed URLs
     processed_urls: Set[str] = set()
 
     logging.info("Starting image transfer to S3...")
-    for song in tqdm(data["songs"], leave=False, desc="S3 upload"):
-        img_url: Optional[str] = song.get("img_url")
-        if img_url and img_url not in processed_urls:
-            filename: str = os.path.basename(urlparse(img_url).path)
 
-            # Download image into memory
+    for song in tqdm(data["songs"], leave=False, desc="S3 upload"):
+
+        img_url: Optional[str] = song.get("img_url")
+
+        if not img_url:
+            continue
+
+        filename: str = os.path.basename(urlparse(img_url).path)
+
+        # Final S3 URL
+        s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{filename}"
+
+        # Upload only once
+        if img_url not in processed_urls:
+
             response: Response = requests.get(img_url, stream=True)
+
             if response.status_code == 200:
-                # Upload directly to S3 without saving locally
+
                 s3.put_object(
                     Bucket=BUCKET_NAME,
                     Key=filename,
                     Body=response.content,
                     ContentType=response.headers.get(
-                        "Content-Type", "application/octet-stream"
+                        "Content-Type",
+                        "application/octet-stream",
                     ),
                 )
-                s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{filename}"
-                song["img_url"] = s3_url
-                processed_urls.add(img_url)
+
                 logging.info(f"Uploaded: {filename}")
 
-    logging.info(f"\nFinished! All images are now in S3 bucket: {BUCKET_NAME}")
+                processed_urls.add(img_url)
+
+        # IMPORTANT:
+        # Always replace GitHub URL with S3 URL
+        song["img_url"] = s3_url
+
+    # IMPORTANT:
+    # Save updated JSON permanently
+    with open("2026a2_songs.json", "w") as f:
+        json.dump(data, f, indent=2)
+
+    logging.info(
+        f"\nFinished! All images are now in S3 bucket: {BUCKET_NAME}"
+    )
 
 
 if __name__ == "__main__":
-    run_s3_pipeline()
+    run_s3_pipeline() 
