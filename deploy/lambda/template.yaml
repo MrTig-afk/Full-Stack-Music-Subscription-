@@ -1,11 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Music subscription backend (FastAPI) on API Gateway + Lambda
+
+Description: Music subscription backend using FastAPI + Lambda + API Gateway
 
 Parameters:
   LabRoleArn:
     Type: String
-    Description: IAM role ARN for Lambda execution (use LabRole ARN from your account)
+    Description: IAM role ARN for Lambda execution
+
   S3BucketName:
     Type: String
     Description: S3 bucket storing artist images
@@ -15,102 +17,130 @@ Globals:
     Runtime: python3.11
     Timeout: 30
     MemorySize: 512
+
     Environment:
       Variables:
-        AWS_REGION: us-east-1
         LOGIN_TABLE_NAME: login
         MUSIC_TABLE_NAME: music
         SUBSCRIPTIONS_TABLE_NAME: subscriptions
         S3_BUCKET_NAME: !Ref S3BucketName
 
 Resources:
+
   RestApi:
     Type: AWS::Serverless::Api
     Properties:
       Name: music-subscription-rest-api
       StageName: prod
+
       Cors:
         AllowMethods: "'GET,POST,DELETE,OPTIONS'"
-        AllowHeaders:
-          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-\
-          Token'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
   BackendFunction:
     Type: AWS::Serverless::Function
+
     Properties:
+
+      # IMPORTANT:
+      # template.yaml is inside deploy/lambda/
+      # ../../ points to project root
       CodeUri: ../../
+
+      # lambda_handler.py
       Handler: lambda_handler.handler
+
+      Runtime: python3.11
+
       Role: !Ref LabRoleArn
+
       Architectures:
         - x86_64
+
+      Policies:
+        - AmazonDynamoDBFullAccess
+        - AmazonS3FullAccess
+
       Events:
+
         HealthGet:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /health
             Method: get
+
         LoginPost:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /login
             Method: post
+
         RegisterPost:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /register
             Method: post
+
         LogoutGet:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /logout
             Method: get
+
         LogoutPost:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /logout
             Method: post
+
         LogoutDelete:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /logout
             Method: delete
+
         SongsSearchGet:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /songs/search
             Method: get
+
         SongsSearchPost:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /songs/search
             Method: post
+
         SubscriptionsByEmailGet:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /subscriptions/{email}
             Method: get
+
         SubscriptionsPost:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /subscriptions
             Method: post
+
         SubscriptionsDelete:
           Type: Api
           Properties:
             RestApiId: !Ref RestApi
             Path: /subscriptions
             Method: delete
+
         SubscriptionItemDelete:
           Type: Api
           Properties:
@@ -119,6 +149,8 @@ Resources:
             Method: delete
 
 Outputs:
+
   ApiUrl:
     Description: API Gateway URL
+
     Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
