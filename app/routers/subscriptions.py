@@ -28,7 +28,7 @@ from fastapi import APIRouter
 from fastapi.logger import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db import create_presigned_image_url, subscriptions_table
+from app.db import subscriptions_table
 from app.schemas import RemoveSubscriptionRequest, SubscribeRequest
 
 router = APIRouter()

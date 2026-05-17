@@ -27,7 +27,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.logger import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db import create_presigned_image_url, music_table
+from app.db import music_table
 from app.schemas import SearchRequest
 
 router = APIRouter()
