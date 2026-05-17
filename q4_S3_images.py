@@ -10,7 +10,7 @@ from requests import Response
 from tqdm.auto import tqdm
 
 # UPDATE THIS: S3 bucket names must be globally unique!
-BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-91725")
+BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "rmit-music-images-unique-gayathritest")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,6 +53,8 @@ def run_s3_pipeline() -> None:
                         "Content-Type", "application/octet-stream"
                     ),
                 )
+                s3_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{filename}"
+                song["img_url"] = s3_url
                 processed_urls.add(img_url)
                 logging.info(f"Uploaded: {filename}")
 
