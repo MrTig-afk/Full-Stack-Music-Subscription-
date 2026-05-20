@@ -14,7 +14,7 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: python3.12
+    Runtime: python3.11
     Timeout: 30
     MemorySize: 512
 
@@ -51,7 +51,7 @@ Resources:
       # lambda_handler.py
       Handler: lambda_handler.handler
 
-      Runtime: python3.12
+      Runtime: python3.11
 
       Role: !Ref LabRoleArn
 
