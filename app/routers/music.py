@@ -32,7 +32,7 @@ from app.schemas import SearchRequest
 
 router = APIRouter()
 
-_AND_SUPPLEMENT_THRESHOLD = 3
+_AND_SUPPLEMENT_THRESHOLD = 0
 
 
 class MusicSearchItem(BaseModel):
