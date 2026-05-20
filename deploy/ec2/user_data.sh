@@ -3,7 +3,7 @@ set -euxo pipefail
 
 # Variables to customize before launching EC2
 AWS_REGION="us-east-1"
-ACCOUNT_ID="CHANGE_ME_ACCOUNT_ID"
+ACCOUNT_ID="479884493361"
 REPOSITORY="music-subscription-api"
 IMAGE_TAG="latest"
 IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPOSITORY}:${IMAGE_TAG}"
@@ -25,7 +25,7 @@ AWS_REGION=us-east-1
 LOGIN_TABLE_NAME=login
 MUSIC_TABLE_NAME=music
 SUBSCRIPTIONS_TABLE_NAME=subscriptions
-S3_BUCKET_NAME=CHANGE_ME_BUCKET
+S3_BUCKET_NAME=rmit-music-images-unique-kaushik
 EOF
 
 docker rm -f music-subscription-api || true

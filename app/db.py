@@ -49,7 +49,13 @@ subscriptions_table = dynamodb.Table(SUBSCRIPTIONS_TABLE_NAME)
 
 
 def get_image_url(image_key: str) -> str:
-    return image_key
+    if not S3_BUCKET_NAME or not image_key:
+        return image_key
+    return s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": S3_BUCKET_NAME, "Key": image_key},
+        ExpiresIn=3600,
+    )
 
 
 def test_connection():
