@@ -493,7 +493,7 @@ Lambda API Gateway URL is permanent — it never changes between sessions.
 #### Get the Lambda API URL
 
 ```bash
-LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name msapp-lambda --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text)
+LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name msapp-lambda --region us-east-1 --output text --query 'Stacks[0].Outputs' | grep ApiUrl | awk '{print $NF}')
 echo $LAMBDA_URL
 ```
 
