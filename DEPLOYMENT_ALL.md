@@ -422,32 +422,46 @@ echo "Account: $ACCOUNT_ID"
 
 ### Step 2A — Resume EC2
 
-#### Check instance state
+#### Find the instance — list all and pick the running one
 
 ```bash
-F="Name=tag:Name,Values=msapp-ec2"
-INST=$(aws ec2 describe-instances --filters "$F" --query 'Reservations[0].Instances[0].InstanceId' --output text --region us-east-1)
-echo $INST
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PublicDnsName]' --output table --region us-east-1
 ```
+
+You'll see a table like:
+```
+| i-04fb9396f78293dd5 | running | ec2-34-228-39-167.compute-1.amazonaws.com |
+```
+
+Set the values from what you see (replace with your actual output):
 
 ```bash
-aws ec2 describe-instances --instance-ids $INST --query 'Reservations[0].Instances[0].State.Name' --output text --region us-east-1
+INST="i-XXXXXXXXXXXXXXXXX"
+EC2_DNS="ec2-XX-XX-XX-XX.compute-1.amazonaws.com"
 ```
 
-- If output is `running` → get the DNS and check if frontend already matches (see below). May need no changes.
-- If output is `stopped` → start it:
+- If state is `running` → skip to "Check if frontend needs updating" below
+- If state is `stopped` → start it first:
 
 ```bash
 aws ec2 start-instances --instance-ids $INST --region us-east-1
 aws ec2 wait instance-running --instance-ids $INST --region us-east-1
 ```
 
-#### Get the (possibly new) public DNS
+Then get the new DNS (it changes when an instance restarts):
 
 ```bash
 EC2_DNS=$(aws ec2 describe-instances --instance-ids $INST --query 'Reservations[0].Instances[0].PublicDnsName' --output text --region us-east-1)
 echo $EC2_DNS
 ```
+
+#### Test the backend is up
+
+```bash
+curl http://${EC2_DNS}/health
+```
+
+Expected: `{"status":"ok"}`
 
 #### Check if frontend needs updating
 
@@ -455,19 +469,13 @@ echo $EC2_DNS
 grep apiBaseUrl ~/music-app/frontend/config.js
 ```
 
-If the URL shown does **not** match `http://$EC2_DNS`, update it:
+If the active `apiBaseUrl` line (the one without `*`) does **not** match `http://${EC2_DNS}`, update it:
 
 ```bash
 OLD=$(grep apiBaseUrl ~/music-app/frontend/config.js | grep -o '"[^"]*"' | tail -1 | tr -d '"')
 NEW="http://${EC2_DNS}"
 sed -i "s|${OLD}|${NEW}|" ~/music-app/frontend/config.js
 aws s3 sync ~/music-app/frontend/ s3://${FRONTEND_BUCKET}/
-```
-
-Test:
-
-```bash
-curl http://${EC2_DNS}/health
 ```
 
 ---
