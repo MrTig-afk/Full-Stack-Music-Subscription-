@@ -478,17 +478,53 @@ sed -i "s|${OLD}|${NEW}|" ~/music-app/frontend/config.js
 aws s3 sync ~/music-app/frontend/ s3://${FRONTEND_BUCKET}/
 ```
 
+#### Get the frontend URL
+
+```bash
+echo "http://msapp-frontend-${ACCOUNT_ID}.s3-website-us-east-1.amazonaws.com"
+```
+
 ---
 
 ### Step 2B — Resume Lambda
 
 Lambda API Gateway URL is permanent — it never changes between sessions.
 
+#### Get the Lambda API URL
+
 ```bash
-aws cloudformation describe-stacks --stack-name msapp-lambda --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text
+LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name msapp-lambda --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text)
+echo $LAMBDA_URL
 ```
 
-That's it. If the frontend was last pointed at Lambda, it still works — nothing to update.
+#### Test it
+
+```bash
+curl ${LAMBDA_URL}health
+```
+
+Expected: `{"status":"ok"}`
+
+#### Check if frontend needs updating
+
+```bash
+grep apiBaseUrl ~/music-app/frontend/config.js
+```
+
+If the active `apiBaseUrl` line does not match `$LAMBDA_URL`, update it:
+
+```bash
+OLD=$(grep apiBaseUrl ~/music-app/frontend/config.js | grep -o '"[^"]*"' | tail -1 | tr -d '"')
+NEW="${LAMBDA_URL%/}"
+sed -i "s|${OLD}|${NEW}|" ~/music-app/frontend/config.js
+aws s3 sync ~/music-app/frontend/ s3://${FRONTEND_BUCKET}/
+```
+
+#### Get the frontend URL
+
+```bash
+echo "http://msapp-frontend-${ACCOUNT_ID}.s3-website-us-east-1.amazonaws.com"
+```
 
 ---
 
@@ -537,6 +573,12 @@ Test:
 
 ```bash
 curl http://${ECS_IP}/health
+```
+
+#### Get the frontend URL
+
+```bash
+echo "http://msapp-frontend-${ACCOUNT_ID}.s3-website-us-east-1.amazonaws.com"
 ```
 
 ---
