@@ -12,3 +12,8 @@ CLAUDE.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Local deployment notes
+DEPLOYMENT_EC2.md
+DEPLOYMENT_LAMBDA.md
+DEPLOYMENT_ECS.md
