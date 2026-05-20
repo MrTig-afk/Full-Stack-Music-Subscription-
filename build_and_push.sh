@@ -3,7 +3,7 @@
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION="us-east-1"
 
-REPO_NAME="music-subscription-api"
+REPO_NAME="msapp-api"
 
 IMAGE_URI=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:latest
 
@@ -15,11 +15,11 @@ $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
 
 echo "Building Docker image..."
 
-docker build -t music_subscription_api .
+docker build -t msapp-api .
 
 echo "Tagging image..."
 
-docker tag music_subscription_api:latest $IMAGE_URI
+docker tag msapp-api:latest $IMAGE_URI
 
 echo "Pushing image to ECR..."
 

@@ -18,7 +18,7 @@ EOF
 
 BACKEND_BASE_URL=""
 REGION="us-east-1"
-STACK_NAME="music-subscription-apigw-ecs"
+STACK_NAME="msapp-apigw-ecs"
 STAGE_NAME="prod"
 
 while [[ $# -gt 0 ]]; do

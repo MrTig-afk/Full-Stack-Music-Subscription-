@@ -4,7 +4,7 @@ Description: API Gateway REST API proxy for ECS-hosted backend
 Parameters:
   ApiName:
     Type: String
-    Default: music-subscription-ecs-rest-api
+    Default: msapp-ecs-rest-api
   StageName:
     Type: String
     Default: prod

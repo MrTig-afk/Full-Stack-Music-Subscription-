@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 # UPDATE THIS: S3 bucket names must be globally unique!
 BUCKET_NAME: str = os.getenv(
     "S3_BUCKET_NAME",
-    "rmit-music-images-unique-gayathritest",
+    "msapp-images-479884493361",
 )
 
 logging.basicConfig(level=logging.INFO)

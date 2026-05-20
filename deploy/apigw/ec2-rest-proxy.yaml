@@ -4,7 +4,7 @@ Description: API Gateway REST API proxy for EC2-hosted backend
 Parameters:
   ApiName:
     Type: String
-    Default: music-subscription-ec2-rest-api
+    Default: msapp-ec2-rest-api
   StageName:
     Type: String
     Default: prod

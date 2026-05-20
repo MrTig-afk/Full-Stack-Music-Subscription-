@@ -18,7 +18,7 @@ EOF
 
 LAB_ROLE_ARN=""
 S3_BUCKET_NAME=""
-STACK_NAME="music-subscription-lambda"
+STACK_NAME="msapp-lambda"
 REGION="us-east-1"
 
 while [[ $# -gt 0 ]]; do

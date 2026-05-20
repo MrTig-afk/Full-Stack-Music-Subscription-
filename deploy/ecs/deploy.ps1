@@ -4,7 +4,7 @@ param(
   [Parameter(Mandatory = $true)] [string]$Service,
   [Parameter(Mandatory = $true)] [string]$LabRoleArn,
   [string]$Region = "us-east-1",
-  [string]$Repository = "music-subscription-api",
+  [string]$Repository = "msapp-api",
   [string]$Bucket = "CHANGE_ME_BUCKET"
 )
 

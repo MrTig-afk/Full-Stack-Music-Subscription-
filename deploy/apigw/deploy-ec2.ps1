@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory = $true)] [string]$BackendBaseUrl,
   [string]$Region = "us-east-1",
-  [string]$StackName = "music-subscription-apigw-ec2",
+  [string]$StackName = "msapp-apigw-ec2",
   [string]$StageName = "prod"
 )
 

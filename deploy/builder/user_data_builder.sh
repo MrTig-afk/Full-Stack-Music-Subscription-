@@ -27,7 +27,7 @@ fi
 echo "1. Getting AWS Account Info..."
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION="us-east-1"
-REPO="music-subscription-api"
+REPO="msapp-api"
 
 # Make sure repo actually exists
 aws ecr describe-repositories --repository-names "$REPO" --region "$REGION" >/dev/null 2>&1 || aws ecr create-repository --repository-name "$REPO" --region "$REGION" >/dev/null
@@ -36,10 +36,10 @@ echo "2. Authenticating Docker to ECR..."
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
 
 echo "3. Building Docker image..."
-docker build -t music-subscription-api:latest .
+docker build -t msapp-api:latest .
 
 echo "4. Tagging Image..."
-docker tag music-subscription-api:latest "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO:latest"
+docker tag msapp-api:latest "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO:latest"
 
 echo "5. Pushing to ECR..."
 docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO:latest"

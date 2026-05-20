@@ -24,7 +24,7 @@ CLUSTER=""
 SERVICE=""
 LAB_ROLE_ARN=""
 REGION="us-east-1"
-REPOSITORY="music-subscription-api"
+REPOSITORY="msapp-api"
 BUCKET="CHANGE_ME_BUCKET"
 
 while [[ $# -gt 0 ]]; do

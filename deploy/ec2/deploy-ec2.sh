@@ -18,7 +18,7 @@ EOF
 
 ACCOUNT_ID=""
 BUCKET="CHANGE_ME_BUCKET"
-REPOSITORY="music-subscription-api"
+REPOSITORY="msapp-api"
 REGION="us-east-1"
 INSTANCE_TYPE="t3.small"
 ROLE_NAME="LabInstanceProfile"
@@ -74,7 +74,7 @@ AMI_ID="$(aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al
 VPC_ID="$(aws ec2 describe-vpcs --region "$REGION" --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"
 SUBNET_ID="$(aws ec2 describe-subnets --region "$REGION" --filters Name=vpc-id,Values="$VPC_ID" --query 'Subnets[0].SubnetId' --output text)"
 
-SG_ID="$(aws ec2 create-security-group --region "$REGION" --group-name "music-subscription-ec2-$(date +%s)" --description "music subscription ec2 backend" --vpc-id "$VPC_ID" --query GroupId --output text)"
+SG_ID="$(aws ec2 create-security-group --region "$REGION" --group-name "msapp-ec2-$(date +%s)" --description "msapp ec2 backend" --vpc-id "$VPC_ID" --query GroupId --output text)"
 aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$SG_ID" --protocol tcp --port 80 --cidr 0.0.0.0/0 >/dev/null
 
 rendered_user_data="$(mktemp)"
@@ -94,7 +94,7 @@ INSTANCE_ID="$(aws ec2 run-instances \
   --subnet-id "$SUBNET_ID" \
   --security-group-ids "$SG_ID" \
   --user-data "file://$rendered_user_data" \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=music-subscription-ec2-backend}]' \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=msapp-ec2-backend}]' \
   --query 'Instances[0].InstanceId' \
   --output text)"
 

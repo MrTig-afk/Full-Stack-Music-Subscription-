@@ -30,7 +30,7 @@ Resources:
   RestApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: music-subscription-rest-api
+      Name: msapp-rest-api
       StageName: prod
 
       Cors:

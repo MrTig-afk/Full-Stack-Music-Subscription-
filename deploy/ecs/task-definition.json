@@ -1,5 +1,5 @@
 {
-  "family": "music-subscription-api",
+  "family": "msapp-api",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
@@ -8,7 +8,7 @@
   "taskRoleArn": "REPLACE_WITH_LABROLE_ARN",
   "containerDefinitions": [
     {
-      "name": "music-subscription-api",
+      "name": "msapp-api",
       "image": "REPLACE_WITH_ECR_IMAGE_URI",
       "essential": true,
       "portMappings": [
@@ -28,7 +28,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/music-subscription-api",
+          "awslogs-group": "/ecs/msapp-api",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }

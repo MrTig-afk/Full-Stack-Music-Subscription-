@@ -4,7 +4,7 @@ set -euxo pipefail
 # Variables to customize before launching EC2
 AWS_REGION="us-east-1"
 ACCOUNT_ID="479884493361"
-REPOSITORY="music-subscription-api"
+REPOSITORY="msapp-api"
 IMAGE_TAG="latest"
 IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPOSITORY}:${IMAGE_TAG}"
 
@@ -20,18 +20,18 @@ aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AW
 docker pull "${IMAGE_URI}"
 
 # Run backend on port 80
-cat >/etc/music-subscription.env <<EOF
+cat >/etc/msapp.env <<EOF
 AWS_REGION=us-east-1
 LOGIN_TABLE_NAME=login
 MUSIC_TABLE_NAME=music
 SUBSCRIPTIONS_TABLE_NAME=subscriptions
-S3_BUCKET_NAME=rmit-music-images-unique-kaushik
+S3_BUCKET_NAME=msapp-images-479884493361
 EOF
 
-docker rm -f music-subscription-api || true
+docker rm -f msapp-api || true
 docker run -d \
-  --name music-subscription-api \
+  --name msapp-api \
   --restart unless-stopped \
-  --env-file /etc/music-subscription.env \
+  --env-file /etc/msapp.env \
   -p 80:80 \
   "${IMAGE_URI}"
