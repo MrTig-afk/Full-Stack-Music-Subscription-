@@ -420,6 +420,40 @@ echo "Account: $ACCOUNT_ID"
 
 ---
 
+### Step 1B — Check what's currently running
+
+Run these to get a full picture before touching anything.
+
+**EC2 instances:**
+
+```bash
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PublicDnsName]' --output table --region us-east-1
+```
+
+**ECS tasks:**
+
+```bash
+aws ecs list-tasks --cluster msapp-cluster --region us-east-1
+```
+
+**Lambda stack:**
+
+```bash
+aws cloudformation describe-stacks --stack-name msapp-lambda --region us-east-1 --output text --query 'Stacks[0].StackStatus'
+```
+
+Expected: `UPDATE_COMPLETE` or `CREATE_COMPLETE` — anything else means the stack has a problem.
+
+**Frontend bucket:**
+
+```bash
+aws s3 ls s3://${FRONTEND_BUCKET} --region us-east-1 | head -5
+```
+
+If this errors, the frontend bucket doesn't exist yet — go back to Phase 4.
+
+---
+
 ### Step 2A — Resume EC2
 
 #### Find the instance — list all and pick the running one
